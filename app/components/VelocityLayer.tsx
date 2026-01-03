@@ -77,48 +77,49 @@ export function VelocityLayer({ data }: VelocityLayerProps) {
   useEffect(() => {
     if (!data || !map) return;
 
-    // Create velocity layer
-    const velocityLayer = L.velocityLayer({
-      ...VELOCITY_OPTIONS,
-      data: data,
-    }) as VelocityLayerWithWindy;
+    // Helper to create a fresh velocity layer
+    const createLayer = () => {
+      const layer = L.velocityLayer({
+        ...VELOCITY_OPTIONS,
+        data: data,
+      }) as VelocityLayerWithWindy;
+      layer.addTo(map);
+      return layer;
+    };
 
-    velocityLayer.addTo(map);
-    layerRef.current = velocityLayer;
+    // Initial creation
+    layerRef.current = createLayer();
 
-    // Pause animation during map interaction (much faster than remove/recreate)
-    const handleMoveStart = () => {
+    // On interaction start: just stop the animation
+    const handleInteractionStart = () => {
       if (layerRef.current?._windy) {
         layerRef.current._windy.stop();
       }
-      // Hide canvas during movement to avoid stale visuals
       if (layerRef.current?._canvas) {
-        layerRef.current._canvas.style.opacity = "0";
+        layerRef.current._canvas.style.opacity = "0.3";
       }
     };
 
-    // Resume animation after map interaction
-    const handleMoveEnd = () => {
-      if (layerRef.current?._windy && layerRef.current?._canvas) {
-        const bounds = map.getBounds();
-        const size = map.getSize();
-        // Show canvas
-        layerRef.current._canvas.style.opacity = "1";
-        // Restart with new bounds (triggers fast internal redraw)
-        layerRef.current._windy.start(bounds, size.x, size.y);
+    // On interaction end: remove and recreate the layer for correct positioning
+    const handleInteractionEnd = () => {
+      // Remove old layer
+      if (layerRef.current) {
+        map.removeLayer(layerRef.current);
       }
+      // Create fresh layer with current map state
+      layerRef.current = createLayer();
     };
 
-    map.on("movestart", handleMoveStart);
-    map.on("zoomstart", handleMoveStart);
-    map.on("moveend", handleMoveEnd);
-    map.on("zoomend", handleMoveEnd);
+    map.on("movestart", handleInteractionStart);
+    map.on("zoomstart", handleInteractionStart);
+    map.on("moveend", handleInteractionEnd);
+    map.on("zoomend", handleInteractionEnd);
 
     return () => {
-      map.off("movestart", handleMoveStart);
-      map.off("zoomstart", handleMoveStart);
-      map.off("moveend", handleMoveEnd);
-      map.off("zoomend", handleMoveEnd);
+      map.off("movestart", handleInteractionStart);
+      map.off("zoomstart", handleInteractionStart);
+      map.off("moveend", handleInteractionEnd);
+      map.off("zoomend", handleInteractionEnd);
 
       if (layerRef.current) {
         map.removeLayer(layerRef.current);
