@@ -143,7 +143,10 @@ export default function Viewer() {
                 °N
               </p>
               <p className="text-slate-400">
-                {regionWest?.toFixed(1)}°E to {regionEast?.toFixed(1)}°E
+                {Math.abs(regionWest ?? 0).toFixed(1)}°
+                {(regionWest ?? 0) < 0 ? "W" : "E"} to{" "}
+                {Math.abs(regionEast ?? 0).toFixed(1)}°
+                {(regionEast ?? 0) < 0 ? "W" : "E"}
               </p>
             </div>
           )}
@@ -163,7 +166,6 @@ export default function Viewer() {
             windData={currentVelocityData}
             center={[centerLat, centerLon]}
             zoom={5}
-            key={currentTimeIndex}
           />
         </Suspense>
       )}

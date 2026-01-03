@@ -1,9 +1,10 @@
 import { MapContainer, TileLayer } from "react-leaflet";
 import { VelocityLayer } from "./VelocityLayer";
+import type { VelocityData } from "../.server/parser";
 import "leaflet/dist/leaflet.css";
 
 interface WindMapProps {
-  windData: unknown;
+  windData: VelocityData;
   center?: [number, number];
   zoom?: number;
 }

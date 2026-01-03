@@ -14,15 +14,6 @@ body {
   }
 }
 
-/* Hide velocity layer canvas during map movement to prevent visual glitches */
-.leaflet-container.is-moving canvas {
-  opacity: 0 !important;
-  transition: none !important;
-}
-
-.leaflet-container:not(.is-moving) canvas {
-  transition: opacity 0.2s ease-out;
-}
 
 /* Position Leaflet zoom controls below the header */
 .leaflet-top.leaflet-left {

@@ -33,8 +33,10 @@ interface VelocityLayerWithWindy extends L.Layer {
   _canvas?: HTMLCanvasElement;
 }
 
+import type { VelocityData } from "../.server/parser";
+
 interface VelocityLayerProps {
-  data: unknown;
+  data: VelocityData;
 }
 
 const VELOCITY_OPTIONS = {

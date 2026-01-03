@@ -17,6 +17,16 @@ export function TimeSlider({
   const [isPlaying, setIsPlaying] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Use refs to avoid recreating the interval on every index change
+  const currentIndexRef = useRef(currentIndex);
+  const timeStepsLengthRef = useRef(timeSteps.length);
+  const onTimeChangeRef = useRef(onTimeChange);
+
+  // Keep refs in sync
+  currentIndexRef.current = currentIndex;
+  timeStepsLengthRef.current = timeSteps.length;
+  onTimeChangeRef.current = onTimeChange;
+
   // Format time for display
   const formatTime = (validTime: string) => {
     const date = new Date(validTime);
@@ -46,10 +56,13 @@ export function TimeSlider({
   }, []);
 
   // Auto-advance when playing
+  // Only recreate interval when isPlaying changes, not on every index change
   useEffect(() => {
     if (isPlaying) {
       intervalRef.current = setInterval(() => {
-        onTimeChange((currentIndex + 1) % timeSteps.length);
+        const nextIndex =
+          (currentIndexRef.current + 1) % timeStepsLengthRef.current;
+        onTimeChangeRef.current(nextIndex);
       }, 1500); // 1.5 seconds per frame
     } else {
       if (intervalRef.current) {
@@ -63,7 +76,7 @@ export function TimeSlider({
         clearInterval(intervalRef.current);
       }
     };
-  }, [isPlaying, currentIndex, timeSteps.length, onTimeChange]);
+  }, [isPlaying]);
 
   // Keyboard controls
   useEffect(() => {
