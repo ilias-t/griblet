@@ -3,10 +3,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "react-router build",
-    "dev": "react-router dev",
-    "start": "react-router-serve ./build/server/index.js",
-    "typecheck": "react-router typegen && tsc"
+    "build": "bun --bun react-router build",
+    "dev": "bun --bun react-router dev",
+    "start": "bun --bun react-router-serve ./build/server/index.js",
+    "typecheck": "bun --bun react-router typegen && tsc"
   },
   "dependencies": {
     "@react-router/node": "7.10.1",
