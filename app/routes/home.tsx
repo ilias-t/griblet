@@ -4,7 +4,7 @@ import type { Route } from "./+types/home";
 import { SaildocsBuilder } from "../components/SaildocsBuilder";
 import type { MultiTimeVelocityData } from "../.server/parser";
 
-const SITE_URL = "https://griblet.fly.dev";
+const SITE_URL = "https://griblet.app";
 const SITE_NAME = "Griblet";
 const DESCRIPTION =
   "Free online GRIB file viewer for marine weather data. Visualize wind forecasts, upload GRIB files, or request via Saildocs. No signup required. View weather data instantly in your browser.";
