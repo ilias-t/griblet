@@ -4,13 +4,86 @@ import type { Route } from "./+types/home";
 import { SaildocsBuilder } from "../components/SaildocsBuilder";
 import type { MultiTimeVelocityData } from "../.server/parser";
 
+const SITE_URL = "https://griblet.fly.dev";
+const SITE_NAME = "Griblet";
+const DESCRIPTION =
+  "Free online GRIB file viewer for marine weather data. Visualize wind forecasts, upload GRIB files, or request via Saildocs. No signup required. View weather data instantly in your browser.";
+
 export function meta({}: Route.MetaArgs) {
+  const canonicalUrl = SITE_URL; // Home page canonical URL
+
   return [
-    { title: "Marine GRIB Viewer" },
+    {
+      title: `${SITE_NAME} - Free Online GRIB Weather File Viewer`,
+    },
     {
       name: "description",
+      content: DESCRIPTION,
+    },
+    {
+      name: "keywords",
       content:
-        "View and visualize GRIB weather files instantly in your browser",
+        "GRIB viewer, marine weather, wind forecast, GRIB file, weather visualization, sailing weather, GRIB2, weather data, marine forecast, wind map",
+    },
+    {
+      name: "author",
+      content: SITE_NAME,
+    },
+    {
+      name: "robots",
+      content: "index, follow",
+    },
+    {
+      name: "viewport",
+      content: "width=device-width, initial-scale=1",
+    },
+    {
+      name: "theme-color",
+      content: "#0f172a",
+    },
+    // Open Graph / Facebook
+    {
+      property: "og:type",
+      content: "website",
+    },
+    {
+      property: "og:url",
+      content: canonicalUrl,
+    },
+    {
+      property: "og:title",
+      content: `${SITE_NAME} - Free Online GRIB Weather File Viewer`,
+    },
+    {
+      property: "og:description",
+      content: DESCRIPTION,
+    },
+    {
+      property: "og:site_name",
+      content: SITE_NAME,
+    },
+    {
+      property: "og:locale",
+      content: "en_US",
+    },
+    // Twitter Card
+    {
+      name: "twitter:card",
+      content: "summary_large_image",
+    },
+    {
+      name: "twitter:title",
+      content: `${SITE_NAME} - Free Online GRIB Weather File Viewer`,
+    },
+    {
+      name: "twitter:description",
+      content: DESCRIPTION,
+    },
+    // Canonical URL
+    {
+      tagName: "link",
+      rel: "canonical",
+      href: canonicalUrl,
     },
   ];
 }
@@ -21,38 +94,71 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>("file");
 
   return (
-    <div className="min-h-screen flex flex-col bg-linear-to-br from-slate-900 via-slate-900 to-slate-800 text-white">
-      {/* Decorative background elements */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-cyan-500/5 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-blue-500/5 rounded-full blur-3xl" />
-      </div>
+    <>
+      {/* Structured Data for SEO */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "WebApplication",
+            name: SITE_NAME,
+            description: DESCRIPTION,
+            url: SITE_URL,
+            applicationCategory: "WeatherApplication",
+            operatingSystem: "Web Browser",
+            offers: {
+              "@type": "Offer",
+              price: "0",
+              priceCurrency: "USD",
+            },
+            featureList: [
+              "GRIB file viewer",
+              "Wind forecast visualization",
+              "Marine weather data",
+              "No signup required",
+              "Free to use",
+            ],
+            browserRequirements: "Requires JavaScript. Requires HTML5.",
+          }),
+        }}
+      />
+      <div className="min-h-screen flex flex-col bg-linear-to-br from-slate-900 via-slate-900 to-slate-800 text-white">
+        {/* Decorative background elements */}
+        <div
+          className="fixed inset-0 overflow-hidden pointer-events-none"
+          aria-hidden="true"
+        >
+          <div className="absolute top-0 left-1/4 w-96 h-96 bg-cyan-500/5 rounded-full blur-3xl" />
+          <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-blue-500/5 rounded-full blur-3xl" />
+        </div>
 
-      <main className="relative flex-1 flex flex-col justify-center container mx-auto px-6 py-16 sm:py-20">
-        <header className="text-center mb-12">
-          <h1 className="text-4xl sm:text-5xl font-bold mb-3 bg-linear-to-r from-cyan-400 via-blue-400 to-cyan-300 bg-clip-text text-transparent">
-            Marine GRIB Viewer
-          </h1>
-          <p className="text-lg sm:text-xl text-slate-400 max-w-lg mx-auto leading-relaxed">
-            Free web-based GRIB file viewer. Open your file or request one via{" "}
-            <a
-              href="https://saildocs.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-cyan-400 hover:text-cyan-300 transition-colors"
-            >
-              Saildocs
-            </a>
-            .
-          </p>
-        </header>
+        <main className="relative flex-1 flex flex-col justify-center container mx-auto px-6 py-16 sm:py-20">
+          <header className="text-center mb-12">
+            <h1 className="text-4xl sm:text-5xl font-bold mb-3 bg-linear-to-r from-cyan-400 via-blue-400 to-cyan-300 bg-clip-text text-transparent">
+              Griblet
+            </h1>
+            <p className="text-lg sm:text-xl text-slate-400 max-w-lg mx-auto leading-relaxed">
+              Free web-based GRIB file viewer for marine weather data. Open your
+              file or request one via{" "}
+              <a
+                href="https://saildocs.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-cyan-400 hover:text-cyan-300 transition-colors"
+              >
+                Saildocs
+              </a>
+              .
+            </p>
+          </header>
 
-        {/* Segmented Control */}
-        <div className="flex justify-center mb-10">
-          <div className="inline-flex bg-slate-800/60 p-1.5 rounded-xl border border-slate-700/50">
-            <button
-              onClick={() => setActiveTab("file")}
-              className={`
+          {/* Segmented Control */}
+          <div className="flex justify-center mb-10">
+            <div className="inline-flex bg-slate-800/60 p-1.5 rounded-xl border border-slate-700/50">
+              <button
+                onClick={() => setActiveTab("file")}
+                className={`
                 flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all duration-200
                 ${
                   activeTab === "file"
@@ -60,25 +166,26 @@ export default function Home() {
                     : "text-slate-400 hover:text-slate-200"
                 }
               `}
-            >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                />
-              </svg>
-              Open File
-            </button>
-            <button
-              onClick={() => setActiveTab("saildocs")}
-              className={`
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                  />
+                </svg>
+                Open File
+              </button>
+              <button
+                onClick={() => setActiveTab("saildocs")}
+                className={`
                 flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all duration-200
                 ${
                   activeTab === "saildocs"
@@ -86,92 +193,102 @@ export default function Home() {
                     : "text-slate-400 hover:text-slate-200"
                 }
               `}
-            >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                />
-              </svg>
-              Request via Saildocs
-            </button>
-          </div>
-        </div>
-
-        {/* Tab Content */}
-        <div className={`mx-auto transition-all duration-300 max-w-4xl`}>
-          {activeTab === "file" ? (
-            <div className="space-y-8">
-              <FileZone />
-
-              {/* Features */}
-              <div className="grid grid-cols-2 gap-3">
-                <FeatureCard
-                  icon={
-                    <svg
-                      className="w-5 h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={1.5}
-                        d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                      />
-                    </svg>
-                  }
-                  title="Private"
-                  description="Files processed in memory only"
-                />
-                <FeatureCard
-                  icon={
-                    <svg
-                      className="w-5 h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={1.5}
-                        d="M13 10V3L4 14h7v7l9-11h-7z"
-                      />
-                    </svg>
-                  }
-                  title="Instant"
-                  description="Visualize wind data in seconds"
-                />
-              </div>
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                  />
+                </svg>
+                Request via Saildocs
+              </button>
             </div>
-          ) : (
-            <SaildocsBuilder />
-          )}
-        </div>
-      </main>
+          </div>
 
-      <footer className="relative text-center py-8 text-slate-500 text-sm space-y-3">
-        <p>Free. No signup required. No data stored.</p>
-        <a
-          href="https://buymeacoffee.com/iliast"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 hover:text-amber-300 border border-amber-500/30 rounded-full transition-colors"
-        >
-          <span>☕</span>
-          <span>Buy me a coffee</span>
-        </a>
-      </footer>
-    </div>
+          {/* Tab Content */}
+          <section
+            className={`mx-auto transition-all duration-300 max-w-4xl`}
+            aria-label="Main content"
+          >
+            {activeTab === "file" ? (
+              <div className="space-y-8">
+                <FileZone />
+
+                {/* Features */}
+                <section
+                  aria-label="Features"
+                  className="grid grid-cols-2 gap-3"
+                >
+                  <FeatureCard
+                    icon={
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={1.5}
+                          d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                        />
+                      </svg>
+                    }
+                    title="Private"
+                    description="Files processed in memory only"
+                  />
+                  <FeatureCard
+                    icon={
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={1.5}
+                          d="M13 10V3L4 14h7v7l9-11h-7z"
+                        />
+                      </svg>
+                    }
+                    title="Instant"
+                    description="Visualize wind data in seconds"
+                  />
+                </section>
+              </div>
+            ) : (
+              <SaildocsBuilder />
+            )}
+          </section>
+        </main>
+
+        <footer className="relative text-center py-8 text-slate-500 text-sm space-y-3">
+          <p>Free. No signup required. No data stored.</p>
+          <a
+            href="https://buymeacoffee.com/iliast"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 hover:text-amber-300 border border-amber-500/30 rounded-full transition-colors"
+          >
+            <span aria-hidden="true">☕</span>
+            <span>Buy me a coffee</span>
+          </a>
+        </footer>
+      </div>
+    </>
   );
 }
 
@@ -325,6 +442,7 @@ function FileZone() {
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
+              aria-hidden="true"
             >
               <path
                 strokeLinecap="round"

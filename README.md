@@ -1,87 +1,59 @@
-# Welcome to React Router!
+# Griblet
 
-A modern, production-ready template for building full-stack React applications using React Router.
+Free online GRIB file viewer for marine weather data. Visualize wind forecasts instantly in your browser.
 
-[![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/remix-run/react-router-templates/tree/main/default)
+**Live:** [griblet.fly.dev](https://griblet.fly.dev)
 
 ## Features
 
-- 🚀 Server-side rendering
-- ⚡️ Hot Module Replacement (HMR)
-- 📦 Asset bundling and optimization
-- 🔄 Data loading and mutations
-- 🔒 TypeScript by default
-- 🎉 TailwindCSS for styling
-- 📖 [React Router docs](https://reactrouter.com/)
+- Upload and visualize GRIB/GRIB2 weather files
+- Animated wind particle visualization on an interactive map
+- Multi-time-step support (scrub through forecast hours)
+- Saildocs email request builder
+- No signup required, files processed in memory only
 
-## Getting Started
+## Requirements
 
-### Installation
-
-Install the dependencies:
+- [Bun](https://bun.sh) runtime
+- [eccodes](https://confluence.ecmwf.int/display/ECC) for GRIB parsing
 
 ```bash
-npm install
+# macOS
+brew install eccodes
+
+# Ubuntu/Debian
+apt-get install libeccodes-tools
 ```
 
-### Development
-
-Start the development server with HMR:
+## Development
 
 ```bash
-npm run dev
+bun install
+bun run dev
 ```
 
-Your application will be available at `http://localhost:5173`.
+Open [http://localhost:5173](http://localhost:5173)
 
-## Building for Production
-
-Create a production build:
+## Production
 
 ```bash
-npm run build
+bun run build
+bun run start
 ```
 
-## Deployment
-
-### Docker Deployment
-
-To build and run using Docker:
+## Deploy to Fly.io
 
 ```bash
-docker build -t my-app .
-
-# Run the container
-docker run -p 3000:3000 my-app
+fly launch
+fly deploy
 ```
 
-The containerized application can be deployed to any platform that supports Docker, including:
+The app uses auto-stop machines to minimize costs when idle.
 
-- AWS ECS
-- Google Cloud Run
-- Azure Container Apps
-- Digital Ocean App Platform
-- Fly.io
-- Railway
+## Tech Stack
 
-### DIY Deployment
-
-If you're familiar with deploying Node applications, the built-in app server is production-ready.
-
-Make sure to deploy the output of `npm run build`
-
-```
-├── package.json
-├── package-lock.json (or pnpm-lock.yaml, or bun.lockb)
-├── build/
-│   ├── client/    # Static assets
-│   └── server/    # Server-side code
-```
-
-## Styling
-
-This template comes with [Tailwind CSS](https://tailwindcss.com/) already configured for a simple default starting experience. You can use whatever CSS framework you prefer.
-
----
-
-Built with ❤️ using React Router.
+- React Router v7 (SSR)
+- Bun runtime
+- Leaflet + leaflet-velocity
+- Tailwind CSS
+- eccodes (GRIB parsing)

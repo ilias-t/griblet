@@ -1,6 +1,5 @@
 {
-  "name": "users-ilias-dev-marine-grib-viewer",
-  "private": true,
+  "name": "marine-grib-viewer",
   "type": "module",
   "scripts": {
     "build": "bun --bun react-router build",
