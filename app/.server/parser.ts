@@ -10,7 +10,9 @@
  * Install: brew install eccodes
  */
 
-import { writeFile, readFile, stat } from "fs/promises";
+import { writeFile, unlink, mkdir } from "fs/promises";
+import { join } from "path";
+import { tmpdir } from "os";
 
 /**
  * Velocity data format expected by leaflet-velocity
@@ -542,67 +544,34 @@ export async function parseGribToVelocityJson(
 }
 
 /**
- * Parse a GRIB and cache the result as JSON (multi-time-step)
+ * Parse a GRIB file from a buffer (in-memory processing)
+ * Writes to a temp file, parses with eccodes, then deletes the temp file.
  */
-export async function parseAndCacheGribMultiTime(
-  gribPath: string,
-  jsonPath: string,
-  refTime?: string
+export async function parseGribBuffer(
+  buffer: ArrayBuffer,
+  filename: string
 ): Promise<MultiTimeVelocityData> {
-  // Check if cached JSON already exists
+  // Create temp directory if needed
+  const tempDir = join(tmpdir(), "marine-grib-viewer");
+  await mkdir(tempDir, { recursive: true });
+
+  // Generate unique temp file path
+  const tempPath = join(tempDir, `${Date.now()}_${filename}`);
+
   try {
-    await stat(jsonPath);
-    const cached = await readFile(jsonPath, "utf-8");
-    return JSON.parse(cached) as MultiTimeVelocityData;
-  } catch {
-    // File doesn't exist, parse the GRIB
-  }
+    // Write buffer to temp file
+    await writeFile(tempPath, Buffer.from(buffer));
 
-  const velocityData = await parseGribToMultiTimeVelocityJson(
-    gribPath,
-    refTime
-  );
+    // Parse the GRIB file
+    const result = await parseGribToMultiTimeVelocityJson(tempPath);
 
-  // Cache the result
-  await writeFile(jsonPath, JSON.stringify(velocityData));
-
-  return velocityData;
-}
-
-/**
- * Parse a GRIB and cache the result as JSON (single time step - backward compatible)
- */
-export async function parseAndCacheGrib(
-  gribPath: string,
-  jsonPath: string,
-  refTime?: string
-): Promise<VelocityData> {
-  // Check if cached JSON already exists
-  try {
-    await stat(jsonPath);
-    const cached = await readFile(jsonPath, "utf-8");
-
-    // Handle both old (VelocityData) and new (MultiTimeVelocityData) cache formats
-    const parsed = JSON.parse(cached);
-
-    if (Array.isArray(parsed) && parsed.length === 2 && parsed[0]?.header) {
-      // Old format: VelocityData directly
-      return parsed as VelocityData;
-    } else if (parsed.timeSteps && Array.isArray(parsed.timeSteps)) {
-      // New format: MultiTimeVelocityData
-      return parsed.timeSteps[0]?.data as VelocityData;
+    return result;
+  } finally {
+    // Always clean up temp file
+    try {
+      await unlink(tempPath);
+    } catch {
+      // Ignore cleanup errors
     }
-
-    // Unknown format, re-parse
-    throw new Error("Unknown cache format");
-  } catch {
-    // File doesn't exist or invalid, parse the GRIB
   }
-
-  const velocityData = await parseGribToVelocityJson(gribPath, refTime);
-
-  // Cache the result (in old format for compatibility)
-  await writeFile(jsonPath, JSON.stringify(velocityData));
-
-  return velocityData;
 }
