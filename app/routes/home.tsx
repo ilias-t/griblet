@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router";
+import { Github, CloudUpload, Mail, Lock, Zap } from "lucide-react";
 import type { Route } from "./+types/home";
 import { SaildocsBuilder } from "../components/SaildocsBuilder";
 import type { MultiTimeVelocityData } from "../.server/parser";
@@ -167,20 +168,7 @@ export default function Home() {
                 }
               `}
               >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  aria-hidden="true"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                  />
-                </svg>
+                <CloudUpload className="w-4 h-4" />
                 Open File
               </button>
               <button
@@ -194,20 +182,7 @@ export default function Home() {
                 }
               `}
               >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  aria-hidden="true"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                  />
-                </svg>
+                <Mail className="w-4 h-4" />
                 Request via Saildocs
               </button>
             </div>
@@ -228,42 +203,12 @@ export default function Home() {
                   className="grid grid-cols-2 gap-3"
                 >
                   <FeatureCard
-                    icon={
-                      <svg
-                        className="w-5 h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                        aria-hidden="true"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={1.5}
-                          d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                        />
-                      </svg>
-                    }
+                    icon={<Lock className="w-5 h-5" />}
                     title="Private"
                     description="Files processed in memory only"
                   />
                   <FeatureCard
-                    icon={
-                      <svg
-                        className="w-5 h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                        aria-hidden="true"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={1.5}
-                          d="M13 10V3L4 14h7v7l9-11h-7z"
-                        />
-                      </svg>
-                    }
+                    icon={<Zap className="w-5 h-5" />}
                     title="Instant"
                     description="Visualize wind data in seconds"
                   />
@@ -277,15 +222,26 @@ export default function Home() {
 
         <footer className="relative text-center py-8 text-slate-500 text-sm space-y-3">
           <p>Free. No signup required. No data stored.</p>
-          <a
-            href="https://buymeacoffee.com/iliast"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 hover:text-amber-300 border border-amber-500/30 rounded-full transition-colors"
-          >
-            <span aria-hidden="true">☕</span>
-            <span>Buy me a coffee</span>
-          </a>
+          <div className="flex items-center justify-center gap-3">
+            <a
+              href="https://github.com/ilias-t/griblet"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-slate-700/50 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-600/50 rounded-full transition-colors"
+            >
+              <Github className="w-4 h-4" />
+              <span>GitHub</span>
+            </a>
+            <a
+              href="https://buymeacoffee.com/iliast"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 hover:text-amber-300 border border-amber-500/30 rounded-full transition-colors"
+            >
+              <span aria-hidden="true">☕</span>
+              <span>Buy me a coffee</span>
+            </a>
+          </div>
         </footer>
       </div>
     </>
@@ -437,20 +393,9 @@ function FileZone() {
           <div
             className={`mx-auto mb-4 w-16 h-16 rounded-full flex items-center justify-center transition-colors ${isDragging ? "bg-cyan-500/20" : "bg-slate-700"}`}
           >
-            <svg
+            <CloudUpload
               className={`w-8 h-8 transition-colors ${isDragging ? "text-cyan-400" : "text-slate-400"}`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-              />
-            </svg>
+            />
           </div>
           <p className="text-lg text-slate-200 mb-2">
             {isDragging
