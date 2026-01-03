@@ -4,6 +4,9 @@
  * Converts GRIB2 files to the JSON format expected by leaflet-velocity
  * using eccodes CLI tools (grib_get_data, grib_ls).
  *
+ * Supports multi-time-step GRIB files (e.g., Saildocs downloads with
+ * multiple forecast hours in a single file).
+ *
  * Install: brew install eccodes
  */
 
@@ -47,7 +50,20 @@ export interface VelocityComponent {
   data: number[];
 }
 
+// Single time step: [U, V] components
 export type VelocityData = [VelocityComponent, VelocityComponent];
+
+// Multiple time steps with metadata
+export interface TimeStep {
+  forecastHour: number;
+  validTime: string;
+  data: VelocityData;
+}
+
+export interface MultiTimeVelocityData {
+  timeSteps: TimeStep[];
+  refTime: string;
+}
 
 /**
  * Check if eccodes is installed
@@ -83,6 +99,7 @@ interface GribMessage {
   jDirectionIncrement: number;
   dataDate: number;
   dataTime: number;
+  stepRange: number; // Forecast hour (e.g., 0, 6, 12, 24)
   messageNumber: number;
 }
 
@@ -104,6 +121,7 @@ async function getGribMetadata(gribPath: string): Promise<GribMessage[]> {
     "jDirectionIncrementInDegrees",
     "dataDate",
     "dataTime",
+    "stepRange", // Forecast hour
   ].join(",");
 
   const proc = Bun.spawn(["grib_ls", "-p", keys, "-j", gribPath], {
@@ -136,11 +154,27 @@ async function getGribMetadata(gribPath: string): Promise<GribMessage[]> {
       jDirectionIncrement: msg.jDirectionIncrementInDegrees as number,
       dataDate: msg.dataDate as number,
       dataTime: msg.dataTime as number,
+      stepRange: parseStepRange(msg.stepRange),
       messageNumber: idx + 1,
     }));
   } catch (e) {
     throw new Error(`Failed to parse grib_ls output: ${e}`);
   }
+}
+
+/**
+ * Parse stepRange which can be a number or a string like "0-6"
+ */
+function parseStepRange(stepRange: unknown): number {
+  if (typeof stepRange === "number") {
+    return stepRange;
+  }
+  if (typeof stepRange === "string") {
+    // Handle ranges like "0-6" - take the end value
+    const parts = stepRange.split("-");
+    return parseInt(parts[parts.length - 1], 10) || 0;
+  }
+  return 0;
 }
 
 /**
@@ -237,7 +271,8 @@ function buildHeader(
   lo2: number,
   dx: number,
   dy: number,
-  refTime: string
+  refTime: string,
+  forecastTime: number
 ): VelocityHeader {
   return {
     discipline: 0,
@@ -251,7 +286,7 @@ function buildHeader(
     parameterNumber,
     parameterNumberName,
     parameterUnit: "m.s-1",
-    forecastTime: 0,
+    forecastTime,
     surface1Type: 103,
     surface1TypeName: "Specified height level above ground",
     surface1Value: 10.0,
@@ -271,107 +306,79 @@ function buildHeader(
 }
 
 /**
- * Parse a GRIB file and convert to leaflet-velocity JSON format
+ * Format GRIB date/time to ISO string
  */
-export async function parseGribToVelocityJson(
+function formatGribTime(dataDate: number, dataTime: number): string {
+  const dateStr = String(dataDate);
+  const year = dateStr.slice(0, 4);
+  const month = dateStr.slice(4, 6);
+  const day = dateStr.slice(6, 8);
+  const hour = String(dataTime).padStart(4, "0").slice(0, 2);
+  const minute = String(dataTime).padStart(4, "0").slice(2, 4);
+  return `${year}-${month}-${day}T${hour}:${minute}:00Z`;
+}
+
+/**
+ * Calculate valid time from reference time and forecast hour
+ */
+function calculateValidTime(refTime: string, forecastHour: number): string {
+  const refDate = new Date(refTime);
+  refDate.setUTCHours(refDate.getUTCHours() + forecastHour);
+  return refDate.toISOString();
+}
+
+/**
+ * Parse a single time step from GRIB messages
+ */
+async function parseTimeStep(
   gribPath: string,
-  refTime?: string
+  uMessage: GribMessage,
+  vMessage: GribMessage,
+  refTime: string
 ): Promise<VelocityData> {
-  // Check eccodes is available
-  const hasEccodes = await checkEccodes();
-  if (!hasEccodes) {
-    throw new Error(
-      "eccodes is not installed. Install with: brew install eccodes"
-    );
-  }
+  const nx = uMessage.Ni;
+  const ny = uMessage.Nj;
 
-  // Get metadata for all messages
-  const messages = await getGribMetadata(gribPath);
-
-  // Find U and V wind components at 10m above ground
-  const uMessage = messages.find(
-    (m) =>
-      (m.shortName === "10u" || m.shortName === "u") &&
-      m.typeOfLevel === "heightAboveGround" &&
-      m.level === 10
-  );
-  const vMessage = messages.find(
-    (m) =>
-      (m.shortName === "10v" || m.shortName === "v") &&
-      m.typeOfLevel === "heightAboveGround" &&
-      m.level === 10
-  );
-
-  if (!uMessage || !vMessage) {
-    // Try alternative: any U/V at surface or first level
-    const uAlt = messages.find(
-      (m) => m.shortName === "10u" || m.shortName === "u"
-    );
-    const vAlt = messages.find(
-      (m) => m.shortName === "10v" || m.shortName === "v"
-    );
-
-    if (!uAlt || !vAlt) {
-      const availableVars = [...new Set(messages.map((m) => m.shortName))].join(
-        ", "
-      );
-      throw new Error(
-        `Could not find U/V wind components. Available variables: ${availableVars}`
-      );
-    }
-
-    // Use alternative
-    Object.assign(uMessage ?? {}, uAlt);
-    Object.assign(vMessage ?? {}, vAlt);
-  }
-
-  const uMsg = uMessage!;
-  const vMsg = vMessage!;
-
-  // Extract grid parameters
-  const nx = uMsg.Ni;
-  const ny = uMsg.Nj;
-
-  // GRIB stores first/last grid points, but their meaning depends on scan direction
-  // GFS typically scans from south-to-north, west-to-east
-  // So firstGridPoint = SW corner, lastGridPoint = NE corner
-  let lat1 = uMsg.latitudeOfFirstGridPoint;
-  let lon1 = uMsg.longitudeOfFirstGridPoint;
-  let lat2 = uMsg.latitudeOfLastGridPoint;
-  let lon2 = uMsg.longitudeOfLastGridPoint;
+  // Process coordinates
+  let lat1 = uMessage.latitudeOfFirstGridPoint;
+  let lon1 = uMessage.longitudeOfFirstGridPoint;
+  let lat2 = uMessage.latitudeOfLastGridPoint;
+  let lon2 = uMessage.longitudeOfLastGridPoint;
 
   // Convert longitudes from 0-360 to -180/180 format
   if (lon1 > 180) lon1 = lon1 - 360;
   if (lon2 > 180) lon2 = lon2 - 360;
 
   // leaflet-velocity expects: la1=north, la2=south, lo1=west, lo2=east
-  const la1 = Math.max(lat1, lat2); // North (larger latitude)
-  const la2 = Math.min(lat1, lat2); // South (smaller latitude)
-  const lo1 = Math.min(lon1, lon2); // West (smaller longitude)
-  const lo2 = Math.max(lon1, lon2); // East (larger longitude)
+  const la1 = Math.max(lat1, lat2);
+  const la2 = Math.min(lat1, lat2);
+  const lo1 = Math.min(lon1, lon2);
+  const lo2 = Math.max(lon1, lon2);
 
-  const dx = uMsg.iDirectionIncrement;
-  const dy = uMsg.jDirectionIncrement;
-
-  // Check if GRIB data needs to be flipped (scans south-to-north)
+  const dx = uMessage.iDirectionIncrement;
+  const dy = uMessage.jDirectionIncrement;
   const scansSouthToNorth = lat1 < lat2;
 
   // Extract data
-  const [uDataRaw, vDataRaw] = await Promise.all([
-    extractMessageData(gribPath, uMsg.messageNumber, nx, ny, scansSouthToNorth),
-    extractMessageData(gribPath, vMsg.messageNumber, nx, ny, scansSouthToNorth),
+  const [uData, vData] = await Promise.all([
+    extractMessageData(
+      gribPath,
+      uMessage.messageNumber,
+      nx,
+      ny,
+      scansSouthToNorth
+    ),
+    extractMessageData(
+      gribPath,
+      vMessage.messageNumber,
+      nx,
+      ny,
+      scansSouthToNorth
+    ),
   ]);
 
-  const uData = uDataRaw;
-  const vData = vDataRaw;
+  const forecastHour = uMessage.stepRange;
 
-  // Build reference time from GRIB metadata or provided value
-  const timeStr =
-    refTime ||
-    formatGribTime(uMsg.dataDate, uMsg.dataTime) ||
-    new Date().toISOString();
-
-  // Build velocity data structure
   const uComponent: VelocityComponent = {
     header: buildHeader(
       2,
@@ -384,7 +391,8 @@ export async function parseGribToVelocityJson(
       lo2,
       dx,
       dy,
-      timeStr
+      refTime,
+      forecastHour
     ),
     data: uData,
   };
@@ -401,7 +409,8 @@ export async function parseGribToVelocityJson(
       lo2,
       dx,
       dy,
-      timeStr
+      refTime,
+      forecastHour
     ),
     data: vData,
   };
@@ -410,20 +419,158 @@ export async function parseGribToVelocityJson(
 }
 
 /**
- * Format GRIB date/time to ISO string
+ * Parse a GRIB file with multiple time steps
  */
-function formatGribTime(dataDate: number, dataTime: number): string {
-  const dateStr = String(dataDate);
-  const year = dateStr.slice(0, 4);
-  const month = dateStr.slice(4, 6);
-  const day = dateStr.slice(6, 8);
-  const hour = String(dataTime).padStart(4, "0").slice(0, 2);
-  const minute = String(dataTime).padStart(4, "0").slice(2, 4);
-  return `${year}-${month}-${day}T${hour}:${minute}:00Z`;
+export async function parseGribToMultiTimeVelocityJson(
+  gribPath: string,
+  refTimeOverride?: string
+): Promise<MultiTimeVelocityData> {
+  // Check eccodes is available
+  const hasEccodes = await checkEccodes();
+  if (!hasEccodes) {
+    throw new Error(
+      "eccodes is not installed. Install with: brew install eccodes"
+    );
+  }
+
+  // Get metadata for all messages
+  const messages = await getGribMetadata(gribPath);
+
+  if (messages.length === 0) {
+    throw new Error("No messages found in GRIB file");
+  }
+
+  // Find all U and V wind components at 10m above ground
+  const uMessages = messages.filter(
+    (m) =>
+      (m.shortName === "10u" || m.shortName === "u") &&
+      ((m.typeOfLevel === "heightAboveGround" && m.level === 10) ||
+        m.typeOfLevel === "surface" ||
+        m.shortName === "10u") // 10u is always 10m wind
+  );
+
+  const vMessages = messages.filter(
+    (m) =>
+      (m.shortName === "10v" || m.shortName === "v") &&
+      ((m.typeOfLevel === "heightAboveGround" && m.level === 10) ||
+        m.typeOfLevel === "surface" ||
+        m.shortName === "10v")
+  );
+
+  // If no 10m wind, try any U/V
+  if (uMessages.length === 0 || vMessages.length === 0) {
+    const uAny = messages.filter(
+      (m) => m.shortName === "10u" || m.shortName === "u"
+    );
+    const vAny = messages.filter(
+      (m) => m.shortName === "10v" || m.shortName === "v"
+    );
+
+    if (uAny.length === 0 || vAny.length === 0) {
+      const availableVars = [...new Set(messages.map((m) => m.shortName))].join(
+        ", "
+      );
+      throw new Error(
+        `Could not find U/V wind components. Available variables: ${availableVars}`
+      );
+    }
+
+    uMessages.push(...uAny.filter((m) => !uMessages.includes(m)));
+    vMessages.push(...vAny.filter((m) => !vMessages.includes(m)));
+  }
+
+  // Get unique forecast hours (stepRange values)
+  const forecastHours = [...new Set(uMessages.map((m) => m.stepRange))].sort(
+    (a, b) => a - b
+  );
+
+  // Determine reference time from first message or override
+  const firstMsg = messages[0];
+  const refTime =
+    refTimeOverride || formatGribTime(firstMsg.dataDate, firstMsg.dataTime);
+
+  // Parse each time step
+  const timeSteps: TimeStep[] = [];
+
+  for (const forecastHour of forecastHours) {
+    const uMsg = uMessages.find((m) => m.stepRange === forecastHour);
+    const vMsg = vMessages.find((m) => m.stepRange === forecastHour);
+
+    if (!uMsg || !vMsg) {
+      console.warn(
+        `Skipping forecast hour ${forecastHour}: missing U or V component`
+      );
+      continue;
+    }
+
+    const velocityData = await parseTimeStep(gribPath, uMsg, vMsg, refTime);
+    const validTime = calculateValidTime(refTime, forecastHour);
+
+    timeSteps.push({
+      forecastHour,
+      validTime,
+      data: velocityData,
+    });
+  }
+
+  if (timeSteps.length === 0) {
+    throw new Error("No valid time steps found in GRIB file");
+  }
+
+  return {
+    timeSteps,
+    refTime,
+  };
 }
 
 /**
- * Parse a GRIB and cache the result as JSON
+ * Parse a GRIB file and convert to leaflet-velocity JSON format
+ * (Single time step - for backward compatibility)
+ */
+export async function parseGribToVelocityJson(
+  gribPath: string,
+  refTime?: string
+): Promise<VelocityData> {
+  const multiTime = await parseGribToMultiTimeVelocityJson(gribPath, refTime);
+
+  // Return the first (or only) time step
+  if (multiTime.timeSteps.length === 0) {
+    throw new Error("No time steps found in GRIB file");
+  }
+
+  return multiTime.timeSteps[0].data;
+}
+
+/**
+ * Parse a GRIB and cache the result as JSON (multi-time-step)
+ */
+export async function parseAndCacheGribMultiTime(
+  gribPath: string,
+  jsonPath: string,
+  refTime?: string
+): Promise<MultiTimeVelocityData> {
+  // Check if cached JSON already exists
+  try {
+    await stat(jsonPath);
+    const cached = await readFile(jsonPath, "utf-8");
+    return JSON.parse(cached) as MultiTimeVelocityData;
+  } catch {
+    // File doesn't exist, parse the GRIB
+  }
+
+  const velocityData = await parseGribToMultiTimeVelocityJson(
+    gribPath,
+    refTime
+  );
+
+  // Cache the result
+  await writeFile(jsonPath, JSON.stringify(velocityData));
+
+  return velocityData;
+}
+
+/**
+ * Parse a GRIB and cache the result as JSON (single time step - backward compatible)
  */
 export async function parseAndCacheGrib(
   gribPath: string,
@@ -434,14 +581,27 @@ export async function parseAndCacheGrib(
   try {
     await stat(jsonPath);
     const cached = await readFile(jsonPath, "utf-8");
-    return JSON.parse(cached) as VelocityData;
+
+    // Handle both old (VelocityData) and new (MultiTimeVelocityData) cache formats
+    const parsed = JSON.parse(cached);
+
+    if (Array.isArray(parsed) && parsed.length === 2 && parsed[0]?.header) {
+      // Old format: VelocityData directly
+      return parsed as VelocityData;
+    } else if (parsed.timeSteps && Array.isArray(parsed.timeSteps)) {
+      // New format: MultiTimeVelocityData
+      return parsed.timeSteps[0]?.data as VelocityData;
+    }
+
+    // Unknown format, re-parse
+    throw new Error("Unknown cache format");
   } catch {
-    // File doesn't exist, parse the GRIB
+    // File doesn't exist or invalid, parse the GRIB
   }
 
   const velocityData = await parseGribToVelocityJson(gribPath, refTime);
 
-  // Cache the result
+  // Cache the result (in old format for compatibility)
   await writeFile(jsonPath, JSON.stringify(velocityData));
 
   return velocityData;

@@ -10,7 +10,14 @@ import { join } from "path";
 import { eq, lt, desc } from "drizzle-orm";
 import { db, schema } from "./db";
 import type { Grib } from "./db/schema";
-import { parseAndCacheGrib, checkWgrib2, type VelocityData } from "./parser";
+import {
+  parseAndCacheGrib,
+  parseAndCacheGribMultiTime,
+  checkWgrib2,
+  type VelocityData,
+  type MultiTimeVelocityData,
+  type TimeStep,
+} from "./parser";
 import { PRESET_REGIONS, type Region } from "../lib/regions";
 
 // Data directory for GRIB files
@@ -278,7 +285,7 @@ export async function cleanupOldGribs(): Promise<number> {
 }
 
 /**
- * Get velocity JSON for a GRIB, parsing if needed
+ * Get velocity JSON for a GRIB, parsing if needed (single time step)
  */
 export async function getGribVelocityData(
   id: string
@@ -307,6 +314,33 @@ export async function getGribVelocityData(
   }
 
   return { grib, velocityData };
+}
+
+/**
+ * Get multi-time-step velocity data for a GRIB
+ */
+export async function getGribMultiTimeData(
+  id: string
+): Promise<{ grib: GribRecord; multiTimeData: MultiTimeVelocityData } | null> {
+  const grib = await getGrib(id);
+  if (!grib || !grib.filePath) {
+    return null;
+  }
+
+  // Use a different cache file for multi-time data
+  const jsonPath = grib.filePath.replace(
+    /\.(grb2?|grib2?)$/i,
+    ".multitime.json"
+  );
+
+  // Parse and cache if needed
+  const multiTimeData = await parseAndCacheGribMultiTime(
+    grib.filePath,
+    jsonPath,
+    grib.forecastTime ?? undefined
+  );
+
+  return { grib, multiTimeData };
 }
 
 /**
@@ -391,4 +425,4 @@ export async function cleanupOldUploads(): Promise<number> {
  * Check if wgrib2 is available
  */
 export { checkWgrib2 };
-export type { VelocityData };
+export type { VelocityData, MultiTimeVelocityData, TimeStep };

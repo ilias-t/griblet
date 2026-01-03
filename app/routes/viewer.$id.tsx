@@ -1,7 +1,9 @@
 import { Link } from "react-router";
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useState, useCallback } from "react";
 import type { Route } from "./+types/viewer.$id";
-import { getGrib, getGribVelocityData, checkWgrib2 } from "../.server/noaa";
+import { getGrib, getGribMultiTimeData, checkWgrib2 } from "../.server/noaa";
+import type { MultiTimeVelocityData, VelocityData } from "../.server/noaa";
+import { TimeSlider } from "../components/TimeSlider";
 
 // Lazy load the map component to ensure it only runs on the client
 const WindMap = lazy(() =>
@@ -50,46 +52,54 @@ export async function loader({ params }: Route.LoaderArgs) {
   }
 
   // Check if eccodes is installed
-  const hasEccodes = await checkWgrib2(); // checkWgrib2 is aliased to checkEccodes
+  const hasEccodes = await checkWgrib2();
 
   if (!hasEccodes) {
     return {
       grib,
-      velocityData: null,
+      multiTimeData: null,
       error: "eccodes is not installed. Install with: brew install eccodes",
     };
   }
 
-  // Try to parse the GRIB
+  // Try to parse the GRIB with multi-time support
   try {
-    const result = await getGribVelocityData(params.id);
+    const result = await getGribMultiTimeData(params.id);
     if (!result) {
       return {
         grib,
-        velocityData: null,
+        multiTimeData: null,
         error: "Failed to load GRIB data",
       };
     }
 
     return {
       grib: result.grib,
-      velocityData: result.velocityData,
+      multiTimeData: result.multiTimeData,
       error: null,
     };
   } catch (err) {
     console.error("GRIB parsing error:", err);
     return {
       grib,
-      velocityData: null,
+      multiTimeData: null,
       error: err instanceof Error ? err.message : "Failed to parse GRIB",
     };
   }
 }
 
 export default function ViewerById({ loaderData }: Route.ComponentProps) {
-  const { grib, velocityData, error } = loaderData;
+  const { grib, multiTimeData, error } = loaderData;
+  const [currentTimeIndex, setCurrentTimeIndex] = useState(0);
 
   const isUpload = grib.source === "upload";
+  const hasMultipleTimeSteps =
+    multiTimeData && multiTimeData.timeSteps.length > 1;
+
+  // Get current time step's velocity data
+  const currentVelocityData: VelocityData | null =
+    multiTimeData?.timeSteps[currentTimeIndex]?.data ?? null;
+  const currentTimeStep = multiTimeData?.timeSteps[currentTimeIndex];
 
   // Try to get region from velocity data header if not in grib record
   let regionNorth = grib.regionNorth;
@@ -97,8 +107,8 @@ export default function ViewerById({ loaderData }: Route.ComponentProps) {
   let regionEast = grib.regionEast;
   let regionWest = grib.regionWest;
 
-  if (velocityData && velocityData[0]?.header) {
-    const header = velocityData[0].header;
+  if (currentVelocityData && currentVelocityData[0]?.header) {
+    const header = currentVelocityData[0].header;
     if (regionNorth === null) regionNorth = header.la1;
     if (regionSouth === null) regionSouth = header.la2;
     if (regionEast === null) regionEast = header.lo2;
@@ -110,6 +120,18 @@ export default function ViewerById({ loaderData }: Route.ComponentProps) {
   const centerLon = ((regionEast ?? -10) + (regionWest ?? -80)) / 2;
 
   const hasRegion = regionNorth !== null && regionSouth !== null;
+
+  // Handle time change from slider
+  const handleTimeChange = useCallback((index: number) => {
+    setCurrentTimeIndex(index);
+  }, []);
+
+  // Determine display time
+  const displayTime = currentTimeStep?.validTime
+    ? formatForecastTime(currentTimeStep.validTime)
+    : grib.forecastTime
+      ? formatForecastTime(grib.forecastTime)
+      : "Unknown time";
 
   return (
     <div className="h-screen w-screen relative">
@@ -127,9 +149,12 @@ export default function ViewerById({ loaderData }: Route.ComponentProps) {
               {isUpload ? "Uploaded GRIB" : "GRIB Viewer"}
             </h1>
             <p className="text-slate-400 text-sm">
-              {grib.forecastTime
-                ? formatForecastTime(grib.forecastTime)
-                : "Unknown time"}
+              {displayTime}
+              {hasMultipleTimeSteps && (
+                <span className="ml-2 text-blue-400">
+                  ({multiTimeData.timeSteps.length} time steps)
+                </span>
+              )}
             </p>
           </div>
           {hasRegion && (
@@ -168,7 +193,7 @@ export default function ViewerById({ loaderData }: Route.ComponentProps) {
       )}
 
       {/* Map with velocity layer */}
-      {velocityData && (
+      {currentVelocityData && (
         <Suspense
           fallback={
             <div className="h-full w-full flex items-center justify-center bg-slate-900">
@@ -177,11 +202,24 @@ export default function ViewerById({ loaderData }: Route.ComponentProps) {
           }
         >
           <WindMap
-            windData={velocityData}
+            windData={currentVelocityData}
             center={[centerLat, centerLon]}
             zoom={5}
+            key={currentTimeIndex} // Force re-render on time change for clean particle reset
           />
         </Suspense>
+      )}
+
+      {/* Time slider for multi-time-step GRIBs */}
+      {hasMultipleTimeSteps && multiTimeData && (
+        <TimeSlider
+          timeSteps={multiTimeData.timeSteps.map((ts) => ({
+            forecastHour: ts.forecastHour,
+            validTime: ts.validTime,
+          }))}
+          currentIndex={currentTimeIndex}
+          onTimeChange={handleTimeChange}
+        />
       )}
     </div>
   );
