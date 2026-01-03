@@ -24,9 +24,17 @@ sqlite.run(`
     parameters TEXT,
     file_path TEXT,
     file_size INTEGER,
+    json_path TEXT,
     created_at INTEGER DEFAULT (unixepoch())
   )
 `);
+
+// Add json_path column if it doesn't exist (migration for existing DBs)
+try {
+  sqlite.run(`ALTER TABLE gribs ADD COLUMN json_path TEXT`);
+} catch {
+  // Column already exists
+}
 
 export const db = drizzle(sqlite, { schema });
 export { schema };

@@ -4,13 +4,19 @@ import "leaflet/dist/leaflet.css";
 
 interface WindMapProps {
   windData: unknown;
+  center?: [number, number];
+  zoom?: number;
 }
 
-export function WindMap({ windData }: WindMapProps) {
+export function WindMap({
+  windData,
+  center = [40, -40],
+  zoom = 3,
+}: WindMapProps) {
   return (
     <MapContainer
-      center={[40, -40]}
-      zoom={3}
+      center={center}
+      zoom={zoom}
       className="h-full w-full"
       style={{ background: "#1a1a2e" }}
     >

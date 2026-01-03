@@ -1,22 +1,32 @@
-FROM node:20-alpine AS development-dependencies-env
-COPY . /app
-WORKDIR /app
-RUN npm ci
+# Install dependencies and build
+FROM oven/bun:1-debian AS build-env
 
-FROM node:20-alpine AS production-dependencies-env
-COPY ./package.json package-lock.json /app/
 WORKDIR /app
-RUN npm ci --omit=dev
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile
 
-FROM node:20-alpine AS build-env
-COPY . /app/
-COPY --from=development-dependencies-env /app/node_modules /app/node_modules
-WORKDIR /app
-RUN npm run build
+COPY . .
+RUN bun run build
 
-FROM node:20-alpine
-COPY ./package.json package-lock.json /app/
-COPY --from=production-dependencies-env /app/node_modules /app/node_modules
-COPY --from=build-env /app/build /app/build
+# Production image
+FROM oven/bun:1-debian
+
+# Install eccodes (ECMWF's GRIB library)
+RUN apt-get update && apt-get install -y \
+    libeccodes-tools \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
-CMD ["npm", "run", "start"]
+
+# Copy built application
+COPY --from=build-env /app/package.json ./
+COPY --from=build-env /app/node_modules ./node_modules
+COPY --from=build-env /app/build ./build
+
+# Create data directory
+RUN mkdir -p /app/data/gribs
+
+# Expose port
+EXPOSE 3000
+
+CMD ["bun", "run", "start"]

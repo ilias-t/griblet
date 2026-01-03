@@ -4,9 +4,9 @@ import {
   listGribs,
   downloadGrib,
   deleteGrib,
-  PRESET_REGIONS,
   type GribRecord,
 } from "../.server/noaa";
+import { PRESET_REGIONS } from "../lib/regions";
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -58,7 +58,10 @@ export async function action({ request }: Route.ActionArgs) {
   return { error: "Unknown action" };
 }
 
-export default function Catalog({ loaderData, actionData }: Route.ComponentProps) {
+export default function Catalog({
+  loaderData,
+  actionData,
+}: Route.ComponentProps) {
   const { gribs, presetRegions } = loaderData;
   const navigation = useNavigation();
   const isDownloading = navigation.state === "submitting";
@@ -229,8 +232,9 @@ function GribCard({ grib }: { grib: GribRecord }) {
         region.west === grib.regionWest
     )?.[0] || "Custom Region";
 
-  const formattedDate = new Date(grib.createdAt).toLocaleString();
-  const formattedSize = (grib.fileSize / 1024).toFixed(1) + " KB";
+  // createdAt is in seconds (from SQLite unixepoch), convert to milliseconds
+  const formattedDate = new Date((grib.createdAt ?? 0) * 1000).toLocaleString();
+  const formattedSize = ((grib.fileSize ?? 0) / 1024).toFixed(1) + " KB";
 
   return (
     <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 flex items-center justify-between">

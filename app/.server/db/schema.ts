@@ -12,6 +12,7 @@ export const gribs = sqliteTable("gribs", {
   parameters: text("parameters"),
   filePath: text("file_path"),
   fileSize: integer("file_size"),
+  jsonPath: text("json_path"), // Path to parsed velocity JSON
   createdAt: integer("created_at").default(sql`(unixepoch())`),
 });
 

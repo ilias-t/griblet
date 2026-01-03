@@ -10,6 +10,8 @@ import { join } from "path";
 import { eq, lt, desc } from "drizzle-orm";
 import { db, schema } from "./db";
 import type { Grib } from "./db/schema";
+import { parseAndCacheGrib, checkWgrib2, type VelocityData } from "./parser";
+import { PRESET_REGIONS, type Region } from "../lib/regions";
 
 // Data directory for GRIB files
 const DATA_DIR = join(process.cwd(), "data", "gribs");
@@ -17,12 +19,8 @@ const DATA_DIR = join(process.cwd(), "data", "gribs");
 // NOAA NOMADS base URL
 const NOMADS_BASE = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25.pl";
 
-export interface Region {
-  north: number;
-  south: number;
-  east: number;
-  west: number;
-}
+// Re-export for convenience
+export { PRESET_REGIONS, type Region };
 
 export interface DownloadOptions {
   region: Region;
@@ -46,20 +44,51 @@ function getLatestGfsRun(): { date: string; hour: string } {
 
   // GFS runs are available ~4 hours after their nominal time
   // Go back 5 hours to be safe
-  now.setHours(now.getHours() - 5);
+  const adjusted = new Date(now.getTime() - 5 * 60 * 60 * 1000);
 
-  const year = now.getUTCFullYear();
-  const month = String(now.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(now.getUTCDate()).padStart(2, "0");
+  const year = adjusted.getUTCFullYear();
+  const month = String(adjusted.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(adjusted.getUTCDate()).padStart(2, "0");
 
   // Find the latest 6-hourly run
-  const hour = Math.floor(now.getUTCHours() / 6) * 6;
+  const hour = Math.floor(adjusted.getUTCHours() / 6) * 6;
   const hourStr = String(hour).padStart(2, "0");
 
   return {
     date: `${year}${month}${day}`,
     hour: hourStr,
   };
+}
+
+/**
+ * Calculate the forecast hour needed to get data valid at current time
+ */
+function getForecastHourForNow(gfsRun: { date: string; hour: string }): number {
+  const runTime = new Date(
+    `${gfsRun.date.slice(0, 4)}-${gfsRun.date.slice(4, 6)}-${gfsRun.date.slice(6, 8)}T${gfsRun.hour}:00:00Z`
+  );
+  const now = new Date();
+
+  const hoursAhead = Math.round(
+    (now.getTime() - runTime.getTime()) / (1000 * 60 * 60)
+  );
+
+  // Clamp to valid GFS forecast hours (0-384)
+  return Math.max(0, Math.min(hoursAhead, 384));
+}
+
+/**
+ * Calculate the valid time for a forecast (run time + forecast hours)
+ */
+function getValidTime(
+  gfsRun: { date: string; hour: string },
+  forecastHour: number
+): string {
+  const runTime = new Date(
+    `${gfsRun.date.slice(0, 4)}-${gfsRun.date.slice(4, 6)}-${gfsRun.date.slice(6, 8)}T${gfsRun.hour}:00:00Z`
+  );
+  const validTime = new Date(runTime.getTime() + forecastHour * 60 * 60 * 1000);
+  return validTime.toISOString();
 }
 
 /**
@@ -97,14 +126,20 @@ export async function downloadGrib(
 ): Promise<GribRecord> {
   await ensureDataDir();
 
-  const { region, forecastHours = [0] } = options;
+  const { region, forecastHours } = options;
   const gfsRun = getLatestGfsRun();
 
-  // For now, just download the first forecast hour
-  const forecastHour = forecastHours[0] || 0;
+  // Auto-calculate forecast hour for current time if not explicitly provided
+  const forecastHour =
+    forecastHours && forecastHours.length > 0
+      ? forecastHours[0]
+      : getForecastHourForNow(gfsRun);
+
   const url = buildNomadsUrl(region, forecastHour, gfsRun);
 
-  console.log(`Downloading GRIB from: ${url}`);
+  console.log(
+    `Downloading GRIB: run=${gfsRun.date}/${gfsRun.hour}z, forecast=f${String(forecastHour).padStart(3, "0")}`
+  );
 
   // Generate unique ID for this GRIB
   const id = `gfs_${gfsRun.date}_${gfsRun.hour}z_f${String(forecastHour).padStart(3, "0")}_${Date.now()}`;
@@ -125,6 +160,7 @@ export async function downloadGrib(
   const fileStats = await stat(filePath);
 
   // Save to database using Drizzle
+  // forecastTime is the VALID time (when the forecast is for), not the run time
   const record = {
     id,
     source: "noaa_gfs",
@@ -132,7 +168,7 @@ export async function downloadGrib(
     regionSouth: region.south,
     regionEast: region.east,
     regionWest: region.west,
-    forecastTime: `${gfsRun.date}T${gfsRun.hour}:00:00Z`,
+    forecastTime: getValidTime(gfsRun, forecastHour),
     parameters: JSON.stringify(["wind", "pressure"]),
     filePath,
     fileSize: fileStats.size,
@@ -235,12 +271,40 @@ export async function cleanupOldGribs(): Promise<number> {
   return rows.length;
 }
 
-// Preset regions for common sailing areas
-export const PRESET_REGIONS: Record<string, Region> = {
-  "North Atlantic": { north: 50, south: 25, east: -10, west: -80 },
-  Mediterranean: { north: 46, south: 30, east: 36, west: -6 },
-  Caribbean: { north: 28, south: 10, east: -60, west: -90 },
-  "US East Coast": { north: 45, south: 25, east: -65, west: -82 },
-  "Pacific Northwest": { north: 55, south: 40, east: -120, west: -140 },
-  "Gulf of Mexico": { north: 31, south: 18, east: -80, west: -98 },
-};
+/**
+ * Get velocity JSON for a GRIB, parsing if needed
+ */
+export async function getGribVelocityData(
+  id: string
+): Promise<{ grib: GribRecord; velocityData: VelocityData } | null> {
+  const grib = await getGrib(id);
+  if (!grib || !grib.filePath) {
+    return null;
+  }
+
+  // Determine JSON path
+  const jsonPath = grib.jsonPath || grib.filePath.replace(/\.grb2$/, ".json");
+
+  // Parse and cache if needed
+  const velocityData = await parseAndCacheGrib(
+    grib.filePath,
+    jsonPath,
+    grib.forecastTime ?? undefined
+  );
+
+  // Update DB with jsonPath if not set
+  if (!grib.jsonPath) {
+    await db
+      .update(schema.gribs)
+      .set({ jsonPath })
+      .where(eq(schema.gribs.id, id));
+  }
+
+  return { grib, velocityData };
+}
+
+/**
+ * Check if wgrib2 is available
+ */
+export { checkWgrib2 };
+export type { VelocityData };
