@@ -89,9 +89,27 @@ export async function loader({ params }: Route.LoaderArgs) {
 export default function ViewerById({ loaderData }: Route.ComponentProps) {
   const { grib, velocityData, error } = loaderData;
 
+  const isUpload = grib.source === "upload";
+
+  // Try to get region from velocity data header if not in grib record
+  let regionNorth = grib.regionNorth;
+  let regionSouth = grib.regionSouth;
+  let regionEast = grib.regionEast;
+  let regionWest = grib.regionWest;
+
+  if (velocityData && velocityData[0]?.header) {
+    const header = velocityData[0].header;
+    if (regionNorth === null) regionNorth = header.la1;
+    if (regionSouth === null) regionSouth = header.la2;
+    if (regionEast === null) regionEast = header.lo2;
+    if (regionWest === null) regionWest = header.lo1;
+  }
+
   // Calculate map center from region
-  const centerLat = ((grib.regionNorth ?? 40) + (grib.regionSouth ?? 30)) / 2;
-  const centerLon = ((grib.regionEast ?? -10) + (grib.regionWest ?? -80)) / 2;
+  const centerLat = ((regionNorth ?? 40) + (regionSouth ?? 30)) / 2;
+  const centerLon = ((regionEast ?? -10) + (regionWest ?? -80)) / 2;
+
+  const hasRegion = regionNorth !== null && regionSouth !== null;
 
   return (
     <div className="h-screen w-screen relative">
@@ -100,26 +118,31 @@ export default function ViewerById({ loaderData }: Route.ComponentProps) {
         <div className="flex items-center justify-between">
           <div>
             <Link
-              to="/catalog"
+              to={isUpload ? "/" : "/catalog"}
               className="text-slate-400 hover:text-white text-sm mb-1 inline-block"
             >
-              ← Back to Catalog
+              ← {isUpload ? "Upload Another" : "Back to Catalog"}
             </Link>
-            <h1 className="text-white text-xl font-bold">GRIB Viewer</h1>
+            <h1 className="text-white text-xl font-bold">
+              {isUpload ? "Uploaded GRIB" : "GRIB Viewer"}
+            </h1>
             <p className="text-slate-400 text-sm">
               {grib.forecastTime
                 ? formatForecastTime(grib.forecastTime)
                 : "Unknown time"}
             </p>
           </div>
-          <div className="text-right text-sm">
-            <p className="text-slate-300">
-              Region: {grib.regionSouth}°N to {grib.regionNorth}°N
-            </p>
-            <p className="text-slate-400">
-              {grib.regionWest}°E to {grib.regionEast}°E
-            </p>
-          </div>
+          {hasRegion && (
+            <div className="text-right text-sm">
+              <p className="text-slate-300">
+                Region: {regionSouth?.toFixed(1)}°N to {regionNorth?.toFixed(1)}
+                °N
+              </p>
+              <p className="text-slate-400">
+                {regionWest?.toFixed(1)}°E to {regionEast?.toFixed(1)}°E
+              </p>
+            </div>
+          )}
         </div>
       </header>
 

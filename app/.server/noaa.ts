@@ -15,6 +15,7 @@ import { PRESET_REGIONS, type Region } from "../lib/regions";
 
 // Data directory for GRIB files
 const DATA_DIR = join(process.cwd(), "data", "gribs");
+const UPLOADS_DIR = join(process.cwd(), "data", "uploads");
 
 // NOAA NOMADS base URL
 const NOMADS_BASE = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25.pl";
@@ -34,6 +35,11 @@ export type GribRecord = Grib;
 // Ensure data directory exists
 async function ensureDataDir() {
   await mkdir(DATA_DIR, { recursive: true });
+}
+
+// Ensure uploads directory exists
+async function ensureUploadsDir() {
+  await mkdir(UPLOADS_DIR, { recursive: true });
 }
 
 /**
@@ -301,6 +307,84 @@ export async function getGribVelocityData(
   }
 
   return { grib, velocityData };
+}
+
+/**
+ * Save an uploaded GRIB file
+ */
+export async function saveUploadedGrib(
+  fileBuffer: ArrayBuffer,
+  originalFilename: string
+): Promise<GribRecord> {
+  await ensureUploadsDir();
+
+  // Generate unique ID
+  const id = `upload_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+  // Sanitize filename and preserve extension
+  const ext = originalFilename.toLowerCase().endsWith(".grb2")
+    ? ".grb2"
+    : originalFilename.toLowerCase().endsWith(".grib2")
+      ? ".grib2"
+      : originalFilename.toLowerCase().endsWith(".grb")
+        ? ".grb"
+        : ".grb2";
+
+  const filePath = join(UPLOADS_DIR, `${id}${ext}`);
+
+  // Write file to disk
+  await writeFile(filePath, Buffer.from(fileBuffer));
+
+  const fileStats = await stat(filePath);
+
+  // Save to database
+  const record = {
+    id,
+    source: "upload",
+    regionNorth: null,
+    regionSouth: null,
+    regionEast: null,
+    regionWest: null,
+    forecastTime: null, // Will be extracted from GRIB during parsing
+    parameters: JSON.stringify(["wind"]),
+    filePath,
+    fileSize: fileStats.size,
+  };
+
+  await db.insert(schema.gribs).values(record);
+
+  const inserted = await db
+    .select()
+    .from(schema.gribs)
+    .where(eq(schema.gribs.id, id))
+    .get();
+
+  return inserted!;
+}
+
+/**
+ * Clean up old uploaded files (older than 24 hours)
+ */
+export async function cleanupOldUploads(): Promise<number> {
+  const oneDayAgo = Math.floor((Date.now() - 24 * 60 * 60 * 1000) / 1000);
+
+  const rows = await db
+    .select({ id: schema.gribs.id, filePath: schema.gribs.filePath })
+    .from(schema.gribs)
+    .where(eq(schema.gribs.source, "upload"))
+    .all();
+
+  let deleted = 0;
+  for (const row of rows) {
+    // Check createdAt manually since we need to compare
+    const grib = await getGrib(row.id);
+    if (grib && grib.createdAt && grib.createdAt < oneDayAgo) {
+      await deleteGrib(row.id);
+      deleted++;
+    }
+  }
+
+  return deleted;
 }
 
 /**
