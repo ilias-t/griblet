@@ -5,13 +5,14 @@
  * via the NOMADS filter service.
  */
 
-import { mkdir, writeFile, readFile, stat, readdir, unlink } from "fs/promises";
+import { mkdir, writeFile, stat, unlink } from "fs/promises";
 import { join } from "path";
-import { Database } from "bun:sqlite";
+import { eq, lt, desc } from "drizzle-orm";
+import { db, schema } from "./db";
+import type { Grib } from "./db/schema";
 
 // Data directory for GRIB files
 const DATA_DIR = join(process.cwd(), "data", "gribs");
-const DB_PATH = join(process.cwd(), "data", "gribs.db");
 
 // NOAA NOMADS base URL
 const NOMADS_BASE = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25.pl";
@@ -29,46 +30,12 @@ export interface DownloadOptions {
   parameters?: ("wind" | "pressure" | "waves")[];
 }
 
-export interface GribRecord {
-  id: string;
-  source: string;
-  regionNorth: number;
-  regionSouth: number;
-  regionEast: number;
-  regionWest: number;
-  forecastTime: string;
-  parameters: string;
-  filePath: string;
-  fileSize: number;
-  createdAt: number;
-}
+// Re-export the Grib type as GribRecord for API compatibility
+export type GribRecord = Grib;
 
 // Ensure data directory exists
 async function ensureDataDir() {
   await mkdir(DATA_DIR, { recursive: true });
-}
-
-// Initialize SQLite database
-function getDb(): Database {
-  const db = new Database(DB_PATH, { create: true });
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS gribs (
-      id TEXT PRIMARY KEY,
-      source TEXT NOT NULL,
-      region_north REAL,
-      region_south REAL,
-      region_east REAL,
-      region_west REAL,
-      forecast_time TEXT,
-      parameters TEXT,
-      file_path TEXT,
-      file_size INTEGER,
-      created_at INTEGER DEFAULT (unixepoch())
-    )
-  `);
-
-  return db;
 }
 
 /**
@@ -129,7 +96,6 @@ export async function downloadGrib(
   options: DownloadOptions
 ): Promise<GribRecord> {
   await ensureDataDir();
-  const db = getDb();
 
   const { region, forecastHours = [0] } = options;
   const gfsRun = getLatestGfsRun();
@@ -148,7 +114,9 @@ export async function downloadGrib(
   const response = await fetch(url);
 
   if (!response.ok) {
-    throw new Error(`Failed to download GRIB: ${response.status} ${response.statusText}`);
+    throw new Error(
+      `Failed to download GRIB: ${response.status} ${response.statusText}`
+    );
   }
 
   const buffer = await response.arrayBuffer();
@@ -156,8 +124,8 @@ export async function downloadGrib(
 
   const fileStats = await stat(filePath);
 
-  // Save to database
-  const record: GribRecord = {
+  // Save to database using Drizzle
+  const record = {
     id,
     source: "noaa_gfs",
     regionNorth: region.north,
@@ -168,29 +136,18 @@ export async function downloadGrib(
     parameters: JSON.stringify(["wind", "pressure"]),
     filePath,
     fileSize: fileStats.size,
-    createdAt: Date.now(),
   };
 
-  db.run(
-    `INSERT INTO gribs (id, source, region_north, region_south, region_east, region_west, forecast_time, parameters, file_path, file_size)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      record.id,
-      record.source,
-      record.regionNorth,
-      record.regionSouth,
-      record.regionEast,
-      record.regionWest,
-      record.forecastTime,
-      record.parameters,
-      record.filePath,
-      record.fileSize,
-    ]
-  );
+  await db.insert(schema.gribs).values(record);
 
-  db.close();
+  // Return with createdAt (will be set by DB default)
+  const inserted = await db
+    .select()
+    .from(schema.gribs)
+    .where(eq(schema.gribs.id, id))
+    .get();
 
-  return record;
+  return inserted!;
 }
 
 /**
@@ -198,115 +155,54 @@ export async function downloadGrib(
  */
 export async function listGribs(): Promise<GribRecord[]> {
   await ensureDataDir();
-  const db = getDb();
 
-  const rows = db
-    .query(
-      `SELECT id, source, region_north, region_south, region_east, region_west,
-              forecast_time, parameters, file_path, file_size, created_at
-       FROM gribs ORDER BY created_at DESC`
-    )
-    .all() as Array<{
-    id: string;
-    source: string;
-    region_north: number;
-    region_south: number;
-    region_east: number;
-    region_west: number;
-    forecast_time: string;
-    parameters: string;
-    file_path: string;
-    file_size: number;
-    created_at: number;
-  }>;
+  const rows = await db
+    .select()
+    .from(schema.gribs)
+    .orderBy(desc(schema.gribs.createdAt))
+    .all();
 
-  db.close();
-
-  return rows.map((row) => ({
-    id: row.id,
-    source: row.source,
-    regionNorth: row.region_north,
-    regionSouth: row.region_south,
-    regionEast: row.region_east,
-    regionWest: row.region_west,
-    forecastTime: row.forecast_time,
-    parameters: row.parameters,
-    filePath: row.file_path,
-    fileSize: row.file_size,
-    createdAt: row.created_at,
-  }));
+  return rows;
 }
 
 /**
  * Get a specific GRIB by ID
  */
 export async function getGrib(id: string): Promise<GribRecord | null> {
-  const db = getDb();
+  const row = await db
+    .select()
+    .from(schema.gribs)
+    .where(eq(schema.gribs.id, id))
+    .get();
 
-  const row = db
-    .query(
-      `SELECT id, source, region_north, region_south, region_east, region_west,
-              forecast_time, parameters, file_path, file_size, created_at
-       FROM gribs WHERE id = ?`
-    )
-    .get(id) as {
-    id: string;
-    source: string;
-    region_north: number;
-    region_south: number;
-    region_east: number;
-    region_west: number;
-    forecast_time: string;
-    parameters: string;
-    file_path: string;
-    file_size: number;
-    created_at: number;
-  } | null;
-
-  db.close();
-
-  if (!row) return null;
-
-  return {
-    id: row.id,
-    source: row.source,
-    regionNorth: row.region_north,
-    regionSouth: row.region_south,
-    regionEast: row.region_east,
-    regionWest: row.region_west,
-    forecastTime: row.forecast_time,
-    parameters: row.parameters,
-    filePath: row.file_path,
-    fileSize: row.file_size,
-    createdAt: row.created_at,
-  };
+  return row ?? null;
 }
 
 /**
  * Delete a GRIB file and its database record
  */
 export async function deleteGrib(id: string): Promise<boolean> {
-  const db = getDb();
-
-  const row = db.query(`SELECT file_path FROM gribs WHERE id = ?`).get(id) as {
-    file_path: string;
-  } | null;
+  const row = await db
+    .select({ filePath: schema.gribs.filePath })
+    .from(schema.gribs)
+    .where(eq(schema.gribs.id, id))
+    .get();
 
   if (!row) {
-    db.close();
     return false;
   }
 
   // Delete file
-  try {
-    await unlink(row.file_path);
-  } catch {
-    // File might not exist, continue anyway
+  if (row.filePath) {
+    try {
+      await unlink(row.filePath);
+    } catch {
+      // File might not exist, continue anyway
+    }
   }
 
   // Delete database record
-  db.run(`DELETE FROM gribs WHERE id = ?`, [id]);
-  db.close();
+  await db.delete(schema.gribs).where(eq(schema.gribs.id, id));
 
   return true;
 }
@@ -315,23 +211,26 @@ export async function deleteGrib(id: string): Promise<boolean> {
  * Clean up old GRIB files (older than 7 days)
  */
 export async function cleanupOldGribs(): Promise<number> {
-  const db = getDb();
-  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const sevenDaysAgo = Math.floor(
+    (Date.now() - 7 * 24 * 60 * 60 * 1000) / 1000
+  );
 
-  const rows = db
-    .query(`SELECT id, file_path FROM gribs WHERE created_at < ?`)
-    .all(sevenDaysAgo) as Array<{ id: string; file_path: string }>;
+  const rows = await db
+    .select({ id: schema.gribs.id, filePath: schema.gribs.filePath })
+    .from(schema.gribs)
+    .where(lt(schema.gribs.createdAt, sevenDaysAgo))
+    .all();
 
   for (const row of rows) {
-    try {
-      await unlink(row.file_path);
-    } catch {
-      // File might not exist
+    if (row.filePath) {
+      try {
+        await unlink(row.filePath);
+      } catch {
+        // File might not exist
+      }
     }
-    db.run(`DELETE FROM gribs WHERE id = ?`, [row.id]);
+    await db.delete(schema.gribs).where(eq(schema.gribs.id, row.id));
   }
-
-  db.close();
 
   return rows.length;
 }
