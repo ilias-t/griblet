@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { useMap, useMapEvents } from "react-leaflet";
+import { useEffect, useRef } from "react";
+import { useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet-velocity";
 
@@ -22,6 +22,15 @@ declare module "leaflet" {
     lineWidth?: number;
     colorScale?: string[];
   }
+}
+
+// Extended type for velocity layer with internal _windy object
+interface VelocityLayerWithWindy extends L.Layer {
+  _windy?: {
+    stop: () => void;
+    start: (bounds: L.LatLngBounds, width: number, height: number) => void;
+  };
+  _canvas?: HTMLCanvasElement;
 }
 
 interface VelocityLayerProps {
@@ -60,78 +69,61 @@ const VELOCITY_OPTIONS = {
 
 export function VelocityLayer({ data }: VelocityLayerProps) {
   const map = useMap();
-  const layerRef = useRef<L.Layer | null>(null);
-  const [isMoving, setIsMoving] = useState(false);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const layerRef = useRef<VelocityLayerWithWindy | null>(null);
 
-  // Listen for map events to track movement state
-  useMapEvents({
-    movestart: () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-      }
-      setIsMoving(true);
-    },
-    zoomstart: () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-      }
-      setIsMoving(true);
-    },
-    moveend: () => {
-      timeoutRef.current = setTimeout(() => {
-        setIsMoving(false);
-      }, 150);
-    },
-    zoomend: () => {
-      timeoutRef.current = setTimeout(() => {
-        setIsMoving(false);
-      }, 150);
-    },
-  });
-
-  // Add/remove layer based on data and movement state
+  // Create the layer once when data is available
   useEffect(() => {
     if (!data || !map) return;
 
-    // Remove layer if moving
-    if (isMoving) {
-      if (layerRef.current) {
-        map.removeLayer(layerRef.current);
-        layerRef.current = null;
+    // Create velocity layer
+    const velocityLayer = L.velocityLayer({
+      ...VELOCITY_OPTIONS,
+      data: data,
+    }) as VelocityLayerWithWindy;
+
+    velocityLayer.addTo(map);
+    layerRef.current = velocityLayer;
+
+    // Pause animation during map interaction (much faster than remove/recreate)
+    const handleMoveStart = () => {
+      if (layerRef.current?._windy) {
+        layerRef.current._windy.stop();
       }
-      return;
-    }
+      // Hide canvas during movement to avoid stale visuals
+      if (layerRef.current?._canvas) {
+        layerRef.current._canvas.style.opacity = "0";
+      }
+    };
 
-    // Add layer if not moving and not already added
-    if (!layerRef.current) {
-      const velocityLayer = L.velocityLayer({
-        ...VELOCITY_OPTIONS,
-        data: data,
-      });
+    // Resume animation after map interaction
+    const handleMoveEnd = () => {
+      if (layerRef.current?._windy && layerRef.current?._canvas) {
+        const bounds = map.getBounds();
+        const size = map.getSize();
+        // Show canvas
+        layerRef.current._canvas.style.opacity = "1";
+        // Restart with new bounds (triggers fast internal redraw)
+        layerRef.current._windy.start(bounds, size.x, size.y);
+      }
+    };
 
-      velocityLayer.addTo(map);
-      layerRef.current = velocityLayer;
-    }
+    map.on("movestart", handleMoveStart);
+    map.on("zoomstart", handleMoveStart);
+    map.on("moveend", handleMoveEnd);
+    map.on("zoomend", handleMoveEnd);
 
     return () => {
+      map.off("movestart", handleMoveStart);
+      map.off("zoomstart", handleMoveStart);
+      map.off("moveend", handleMoveEnd);
+      map.off("zoomend", handleMoveEnd);
+
       if (layerRef.current) {
         map.removeLayer(layerRef.current);
         layerRef.current = null;
       }
     };
-  }, [map, data, isMoving]);
-
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-    };
-  }, []);
+  }, [map, data]);
 
   return null;
 }
