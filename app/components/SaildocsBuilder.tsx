@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { PRESET_REGIONS, type Region } from "../lib/regions";
 
 interface SaildocsBuilderProps {
@@ -83,9 +83,6 @@ function formatRegion(region: Region): string {
 }
 
 export function SaildocsBuilder({ className = "" }: SaildocsBuilderProps) {
-  // User email (persisted in localStorage)
-  const [email, setEmail] = useState("");
-
   // Model selection
   const [model, setModel] = useState<string>("GFS");
 
@@ -110,18 +107,6 @@ export function SaildocsBuilder({ className = "" }: SaildocsBuilderProps) {
     "WIND",
     "PRMSL",
   ]);
-
-  // Load email from localStorage on mount
-  useEffect(() => {
-    const saved = localStorage.getItem("saildocs_email");
-    if (saved) setEmail(saved);
-  }, []);
-
-  // Save email to localStorage
-  const handleEmailChange = (value: string) => {
-    setEmail(value);
-    localStorage.setItem("saildocs_email", value);
-  };
 
   // Get available parameters for the current model
   const availableParams = useMemo(() => {
@@ -173,70 +158,90 @@ export function SaildocsBuilder({ className = "" }: SaildocsBuilderProps) {
     return `mailto:query@saildocs.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   }, [query]);
 
+  // Copy feedback state
+  const [copied, setCopied] = useState(false);
+
   // Copy query to clipboard
   const copyQuery = async () => {
     await navigator.clipboard.writeText(query);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <div
-      className={`bg-slate-800/50 border border-slate-700 rounded-xl p-6 ${className}`}
-    >
-      <h2 className="text-xl font-semibold text-white mb-1">
-        Request GRIB via Saildocs
-      </h2>
-      <p className="text-slate-400 text-sm mb-6">
-        Build a query to send to{" "}
-        <span className="text-cyan-400 font-mono">query@saildocs.com</span>
-      </p>
-
-      <div className="space-y-6">
-        {/* Email Input */}
-        <div>
-          <label className="block text-sm font-medium text-slate-300 mb-2">
-            Your Email (for receiving GRIB)
-          </label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => handleEmailChange(e.target.value)}
-            placeholder="sailor@example.com"
-            className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
-          />
-        </div>
-
-        {/* Model Selection */}
-        <div>
-          <label className="block text-sm font-medium text-slate-300 mb-2">
+    <div className={className}>
+      {/* 2x2 Grid layout on desktop */}
+      <div className="grid md:grid-cols-2 gap-4">
+        {/* Card 1: Weather Model */}
+        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
+          <h3 className="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2">
+            <svg
+              className="w-4 h-4 text-cyan-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+              />
+            </svg>
             Weather Model
-          </label>
-          <div className="grid grid-cols-2 gap-2">
-            {MODELS.map((m) => (
-              <button
-                key={m.id}
-                onClick={() => setModel(m.id)}
-                className={`px-3 py-2 rounded-lg text-sm text-left transition-all ${
-                  model === m.id
-                    ? "bg-cyan-600 text-white border border-cyan-500"
-                    : "bg-slate-700/50 text-slate-300 border border-slate-600 hover:border-slate-500"
-                }`}
-              >
-                <div className="font-medium">{m.name}</div>
-                <div className="text-xs opacity-70">{m.description}</div>
-              </button>
-            ))}
-          </div>
+          </h3>
+            <div className="grid grid-cols-2 gap-2" role="group" aria-label="Weather model selection">
+              {MODELS.map((m) => (
+                <button
+                  key={m.id}
+                  onClick={() => setModel(m.id)}
+                  aria-label={`Select ${m.name}: ${m.description}`}
+                  aria-pressed={model === m.id}
+                  className={`px-3 py-2 rounded-lg text-sm text-left transition-all ${
+                    model === m.id
+                      ? "bg-cyan-600 text-white ring-1 ring-cyan-400"
+                      : "bg-slate-700/50 text-slate-300 hover:bg-slate-700"
+                  }`}
+                >
+                  <div className="font-medium text-xs">{m.name}</div>
+                  <div className="text-[10px] opacity-70 mt-0.5 leading-tight">
+                    {m.description}
+                  </div>
+                </button>
+              ))}
+            </div>
         </div>
 
-        {/* Region Selection */}
-        <div>
-          <label className="block text-sm font-medium text-slate-300 mb-2">
+        {/* Card 2: Region */}
+        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
+          <h3 className="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2">
+            <svg
+              className="w-4 h-4 text-cyan-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+              />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+              />
+            </svg>
             Region
-          </label>
-          <div className="flex gap-2 mb-3">
+          </h3>
+          <div className="flex gap-2 mb-3" role="group" aria-label="Region selection mode">
             <button
               onClick={() => setUseCustom(false)}
-              className={`flex-1 px-3 py-2 rounded-lg text-sm transition-all ${
+              aria-pressed={!useCustom}
+              aria-label="Use preset region"
+              className={`flex-1 px-3 py-1.5 rounded-lg text-sm transition-all ${
                 !useCustom
                   ? "bg-cyan-600 text-white"
                   : "bg-slate-700/50 text-slate-300 hover:bg-slate-700"
@@ -246,7 +251,9 @@ export function SaildocsBuilder({ className = "" }: SaildocsBuilderProps) {
             </button>
             <button
               onClick={() => setUseCustom(true)}
-              className={`flex-1 px-3 py-2 rounded-lg text-sm transition-all ${
+              aria-pressed={useCustom}
+              aria-label="Use custom region coordinates"
+              className={`flex-1 px-3 py-1.5 rounded-lg text-sm transition-all ${
                 useCustom
                   ? "bg-cyan-600 text-white"
                   : "bg-slate-700/50 text-slate-300 hover:bg-slate-700"
@@ -257,204 +264,239 @@ export function SaildocsBuilder({ className = "" }: SaildocsBuilderProps) {
           </div>
 
           {!useCustom ? (
-            <select
-              value={regionPreset}
-              onChange={(e) => setRegionPreset(e.target.value)}
-              className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-            >
-              {Object.keys(PRESET_REGIONS).map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
+            <>
+              <label htmlFor="region-preset-select" className="sr-only">
+                Select preset region
+              </label>
+              <select
+                id="region-preset-select"
+                value={regionPreset}
+                onChange={(e) => setRegionPreset(e.target.value)}
+                aria-label="Select preset region"
+                className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+              >
+                {Object.keys(PRESET_REGIONS).map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </>
           ) : (
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-slate-400">North</label>
-                <input
-                  type="number"
-                  value={customRegion.north}
-                  onChange={(e) =>
-                    setCustomRegion({
-                      ...customRegion,
-                      north: Number(e.target.value),
-                    })
-                  }
-                  className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-slate-400">South</label>
-                <input
-                  type="number"
-                  value={customRegion.south}
-                  onChange={(e) =>
-                    setCustomRegion({
-                      ...customRegion,
-                      south: Number(e.target.value),
-                    })
-                  }
-                  className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-slate-400">West</label>
-                <input
-                  type="number"
-                  value={customRegion.west}
-                  onChange={(e) =>
-                    setCustomRegion({
-                      ...customRegion,
-                      west: Number(e.target.value),
-                    })
-                  }
-                  className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-slate-400">East</label>
-                <input
-                  type="number"
-                  value={customRegion.east}
-                  onChange={(e) =>
-                    setCustomRegion({
-                      ...customRegion,
-                      east: Number(e.target.value),
-                    })
-                  }
-                  className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm"
-                />
-              </div>
+            <div className="grid grid-cols-2 gap-2">
+              {(["north", "south", "west", "east"] as const).map((dir) => (
+                <div key={dir}>
+                  <label htmlFor={`region-${dir}`} className="text-[10px] text-slate-400 uppercase tracking-wide">
+                    {dir}
+                  </label>
+                  <input
+                    id={`region-${dir}`}
+                    type="number"
+                    value={customRegion[dir]}
+                    onChange={(e) =>
+                      setCustomRegion({
+                        ...customRegion,
+                        [dir]: Number(e.target.value),
+                      })
+                    }
+                    aria-label={`Region ${dir} coordinate`}
+                    className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-2 py-1.5 text-white text-sm"
+                  />
+                </div>
+              ))}
             </div>
           )}
         </div>
 
-        {/* Resolution */}
-        <div>
-          <label className="block text-sm font-medium text-slate-300 mb-2">
-            Resolution
-          </label>
-          <div className="flex gap-2">
-            {RESOLUTIONS.map((r) => (
-              <button
-                key={r.lat}
-                onClick={() => setResolution(r.lat)}
-                className={`flex-1 px-3 py-2 rounded-lg text-sm transition-all ${
-                  resolution === r.lat
-                    ? "bg-cyan-600 text-white"
-                    : "bg-slate-700/50 text-slate-300 hover:bg-slate-700"
-                }`}
-              >
-                {r.label}
-              </button>
-            ))}
+        {/* Card 3: Forecast Settings (Resolution + Hours) */}
+        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
+          <h3 className="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2">
+            <svg
+              className="w-4 h-4 text-cyan-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            Forecast
+          </h3>
+
+          {/* Resolution inline */}
+          <div className="mb-4">
+            <label className="text-xs text-slate-400 mb-1.5 block" id="resolution-label">
+              Resolution
+            </label>
+            <div className="flex gap-1.5" role="group" aria-labelledby="resolution-label">
+              {RESOLUTIONS.map((r) => (
+                <button
+                  key={r.lat}
+                  onClick={() => setResolution(r.lat)}
+                  aria-label={`Set resolution to ${r.lat} degrees`}
+                  aria-pressed={resolution === r.lat}
+                  className={`flex-1 px-2 py-1.5 rounded-md text-xs transition-all ${
+                    resolution === r.lat
+                      ? "bg-cyan-600 text-white"
+                      : "bg-slate-700/50 text-slate-300 hover:bg-slate-700"
+                  }`}
+                >
+                  {r.lat}°
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Hours */}
+          <div>
+            <label className="text-xs text-slate-400 mb-1.5 block" id="time-steps-label">
+              Time Steps
+            </label>
+            <div className="flex flex-wrap gap-1.5" role="group" aria-labelledby="time-steps-label">
+              {FORECAST_HOURS.map((hour) => (
+                <button
+                  key={hour}
+                  onClick={() => toggleHour(hour)}
+                  aria-label={`${selectedHours.includes(hour) ? 'Remove' : 'Add'} forecast hour ${hour}`}
+                  aria-pressed={selectedHours.includes(hour)}
+                  className={`px-2.5 py-1 rounded-md text-xs transition-all ${
+                    selectedHours.includes(hour)
+                      ? "bg-cyan-600 text-white"
+                      : "bg-slate-700/50 text-slate-400 hover:bg-slate-700"
+                  }`}
+                >
+                  +{hour}h
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
-        {/* Forecast Hours */}
-        <div>
-          <label className="block text-sm font-medium text-slate-300 mb-2">
-            Forecast Hours
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {FORECAST_HOURS.map((hour) => (
-              <button
-                key={hour}
-                onClick={() => toggleHour(hour)}
-                className={`px-3 py-1.5 rounded-lg text-sm transition-all ${
-                  selectedHours.includes(hour)
-                    ? "bg-cyan-600 text-white"
-                    : "bg-slate-700/50 text-slate-400 hover:bg-slate-700"
-                }`}
-              >
-                +{hour}h
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Parameters */}
-        <div>
-          <label className="block text-sm font-medium text-slate-300 mb-2">
-            Parameters{" "}
-            <span className="text-slate-500 font-normal">
-              (available for {model})
+        {/* Card 4: Parameters */}
+        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5">
+          <h3 className="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2" id="parameters-label">
+            <svg
+              className="w-4 h-4 text-cyan-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+              />
+            </svg>
+            Parameters
+            <span className="text-slate-500 font-normal text-xs ml-auto">
+              {model}
             </span>
-          </label>
-          <div className="grid grid-cols-2 gap-2">
+          </h3>
+          <div className="grid grid-cols-2 gap-2" role="group" aria-labelledby="parameters-label">
             {availableParams.map((param) => (
               <button
                 key={param.id}
                 onClick={() => toggleParam(param.id)}
-                className={`px-3 py-2 rounded-lg text-sm text-left transition-all ${
+                aria-label={`${selectedParams.includes(param.id) ? 'Remove' : 'Add'} parameter ${param.name}: ${param.description}`}
+                aria-pressed={selectedParams.includes(param.id)}
+                className={`px-3 py-2 rounded-lg text-xs text-left transition-all ${
                   selectedParams.includes(param.id)
-                    ? "bg-cyan-600 text-white border border-cyan-500"
-                    : "bg-slate-700/50 text-slate-300 border border-slate-600 hover:border-slate-500"
+                    ? "bg-cyan-600 text-white ring-1 ring-cyan-400"
+                    : "bg-slate-700/50 text-slate-300 hover:bg-slate-700"
                 }`}
               >
                 <div className="font-medium">{param.name}</div>
-                <div className="text-xs opacity-70">{param.description}</div>
+                <div className="text-[10px] opacity-70 leading-tight">
+                  {param.description}
+                </div>
               </button>
             ))}
           </div>
         </div>
+      </div>
 
-        {/* Generated Query */}
-        <div>
-          <label className="block text-sm font-medium text-slate-300 mb-2">
-            Generated Query
-          </label>
-          <div className="bg-slate-900/50 border border-slate-600 rounded-lg p-4 font-mono text-sm text-cyan-300 break-all">
+      {/* Bottom Section: Output */}
+      <div className="mt-4 bg-slate-800/50 border border-slate-700/50 rounded-xl p-4">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          {/* Query Preview */}
+          <div className="flex-1 min-w-0 bg-slate-900/50 border border-slate-600 rounded-lg px-3 py-2 font-mono text-sm text-cyan-300 truncate">
             {query}
           </div>
-        </div>
 
-        {/* Actions */}
-        <div className="flex gap-3">
-          <button
-            onClick={copyQuery}
-            className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-medium py-3 px-4 rounded-lg transition-all flex items-center justify-center gap-2"
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+          {/* Actions */}
+          <div className="flex gap-2 shrink-0">
+            <button
+              onClick={copyQuery}
+              aria-label={copied ? "Query copied to clipboard" : "Copy query to clipboard"}
+              className={`font-medium py-2 px-3 rounded-lg transition-all flex items-center gap-1.5 text-xs ${
+                copied
+                  ? "bg-green-600 text-white"
+                  : "bg-slate-700 hover:bg-slate-600 text-white"
+              }`}
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"
-              />
-            </svg>
-            Copy Query
-          </button>
-          <a
-            href={mailtoLink}
-            className="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white font-medium py-3 px-4 rounded-lg transition-all flex items-center justify-center gap-2"
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+              {copied ? (
+                <svg
+                  className="w-3.5 h-3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+              ) : (
+                <svg
+                  className="w-3.5 h-3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"
+                  />
+                </svg>
+              )}
+              {copied ? "Copied!" : "Copy"}
+            </button>
+            <a
+              href={mailtoLink}
+              aria-label="Open email client to send query to Saildocs"
+              className="bg-cyan-600 hover:bg-cyan-500 text-white font-medium py-2 px-3 rounded-lg transition-all flex items-center gap-1.5 text-xs"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-              />
-            </svg>
-            Open in Email
-          </a>
+              <svg
+                className="w-3.5 h-3.5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                />
+              </svg>
+              Send
+            </a>
+          </div>
         </div>
-
-        <p className="text-slate-500 text-xs text-center">
-          Send this query to query@saildocs.com. You'll receive a GRIB file
-          reply within minutes.
+        <p className="text-slate-500 text-[10px] mt-2">
+          Send to{" "}
+          <span className="text-cyan-400/80 font-mono">query@saildocs.com</span>{" "}
+          — reply arrives in minutes
         </p>
       </div>
     </div>

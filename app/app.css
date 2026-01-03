@@ -28,3 +28,11 @@ body {
 .leaflet-top.leaflet-left {
   top: 100px;
 }
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}

@@ -9,7 +9,11 @@ interface TimeSliderProps {
   onTimeChange: (index: number) => void;
 }
 
-export function TimeSlider({ timeSteps, currentIndex, onTimeChange }: TimeSliderProps) {
+export function TimeSlider({
+  timeSteps,
+  currentIndex,
+  onTimeChange,
+}: TimeSliderProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -104,6 +108,9 @@ export function TimeSlider({ timeSteps, currentIndex, onTimeChange }: TimeSlider
         {/* Play/Pause button */}
         <button
           onClick={togglePlay}
+          aria-label={
+            isPlaying ? "Pause animation (Space)" : "Play animation (Space)"
+          }
           className="w-10 h-10 flex items-center justify-center rounded-full bg-blue-600 hover:bg-blue-500 text-white transition-colors"
           title={isPlaying ? "Pause (Space)" : "Play (Space)"}
         >
@@ -113,7 +120,11 @@ export function TimeSlider({ timeSteps, currentIndex, onTimeChange }: TimeSlider
               <rect x="14" y="4" width="4" height="16" />
             </svg>
           ) : (
-            <svg className="w-5 h-5 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+            <svg
+              className="w-5 h-5 ml-0.5"
+              fill="currentColor"
+              viewBox="0 0 24 24"
+            >
               <path d="M8 5v14l11-7z" />
             </svg>
           )}
@@ -121,12 +132,20 @@ export function TimeSlider({ timeSteps, currentIndex, onTimeChange }: TimeSlider
 
         {/* Slider */}
         <div className="flex-1">
+          <label htmlFor="time-slider" className="sr-only">
+            Select forecast time step
+          </label>
           <input
+            id="time-slider"
             type="range"
             min={0}
             max={timeSteps.length - 1}
             value={currentIndex}
             onChange={(e) => onTimeChange(parseInt(e.target.value, 10))}
+            aria-label={`Time step ${currentIndex + 1} of ${timeSteps.length}`}
+            aria-valuemin={0}
+            aria-valuemax={timeSteps.length - 1}
+            aria-valuenow={currentIndex}
             className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer
                        [&::-webkit-slider-thumb]:appearance-none
                        [&::-webkit-slider-thumb]:w-4
@@ -136,13 +155,19 @@ export function TimeSlider({ timeSteps, currentIndex, onTimeChange }: TimeSlider
                        [&::-webkit-slider-thumb]:hover:bg-blue-400
                        [&::-webkit-slider-thumb]:transition-colors"
           />
-          
+
           {/* Time step indicators */}
-          <div className="flex justify-between mt-1 px-1">
+          <div
+            className="flex justify-between mt-1 px-1"
+            role="group"
+            aria-label="Time step shortcuts"
+          >
             {timeSteps.map((step, idx) => (
               <button
                 key={idx}
                 onClick={() => onTimeChange(idx)}
+                aria-label={`Go to ${formatForecastHour(step.forecastHour)} - ${formatTime(step.validTime)}`}
+                aria-pressed={idx === currentIndex}
                 className={`text-xs transition-colors ${
                   idx === currentIndex
                     ? "text-blue-400 font-medium"
@@ -160,21 +185,47 @@ export function TimeSlider({ timeSteps, currentIndex, onTimeChange }: TimeSlider
           <button
             onClick={() => onTimeChange(Math.max(0, currentIndex - 1))}
             disabled={currentIndex === 0}
+            aria-label="Previous time step (Left Arrow)"
             className="w-8 h-8 flex items-center justify-center rounded bg-slate-700 hover:bg-slate-600 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             title="Previous (←)"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 19l-7-7 7-7"
+              />
             </svg>
           </button>
           <button
-            onClick={() => onTimeChange(Math.min(timeSteps.length - 1, currentIndex + 1))}
+            onClick={() =>
+              onTimeChange(Math.min(timeSteps.length - 1, currentIndex + 1))
+            }
             disabled={currentIndex === timeSteps.length - 1}
+            aria-label="Next time step (Right Arrow)"
             className="w-8 h-8 flex items-center justify-center rounded bg-slate-700 hover:bg-slate-600 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             title="Next (→)"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 5l7 7-7 7"
+              />
             </svg>
           </button>
         </div>
@@ -182,4 +233,3 @@ export function TimeSlider({ timeSteps, currentIndex, onTimeChange }: TimeSlider
     </div>
   );
 }
-

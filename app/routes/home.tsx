@@ -21,26 +21,25 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>("file");
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-slate-900 via-slate-900 to-slate-800 text-white">
+    <div className="min-h-screen flex flex-col bg-linear-to-br from-slate-900 via-slate-900 to-slate-800 text-white">
       {/* Decorative background elements */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-0 left-1/4 w-96 h-96 bg-cyan-500/5 rounded-full blur-3xl" />
         <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-blue-500/5 rounded-full blur-3xl" />
       </div>
 
-      <div className="relative container mx-auto px-4 py-12">
-        <header className="text-center mb-10">
-          <h1 className="text-5xl font-bold mb-4 bg-linear-to-r from-cyan-400 via-blue-400 to-cyan-300 bg-clip-text text-transparent">
+      <main className="relative flex-1 flex flex-col justify-center container mx-auto px-6 py-16 sm:py-20">
+        <header className="text-center mb-12">
+          <h1 className="text-4xl sm:text-5xl font-bold mb-3 bg-linear-to-r from-cyan-400 via-blue-400 to-cyan-300 bg-clip-text text-transparent">
             Marine GRIB Viewer
           </h1>
-          <p className="text-xl text-slate-400 max-w-2xl mx-auto">
-            Free web-based GRIB file viewer.
-            <br />
-            Open your file or request one via{" "}
+          <p className="text-lg sm:text-xl text-slate-400 max-w-lg mx-auto leading-relaxed">
+            Free web-based GRIB file viewer. Open your file or request one via{" "}
             <a
               href="https://saildocs.com"
               target="_blank"
               rel="noopener noreferrer"
+              className="text-cyan-400 hover:text-cyan-300 transition-colors"
             >
               Saildocs
             </a>
@@ -49,8 +48,8 @@ export default function Home() {
         </header>
 
         {/* Segmented Control */}
-        <div className="flex justify-center mb-8">
-          <div className="inline-flex bg-slate-800/60 p-1 rounded-xl border border-slate-700/50">
+        <div className="flex justify-center mb-10">
+          <div className="inline-flex bg-slate-800/60 p-1.5 rounded-xl border border-slate-700/50">
             <button
               onClick={() => setActiveTab("file")}
               className={`
@@ -107,17 +106,17 @@ export default function Home() {
         </div>
 
         {/* Tab Content */}
-        <div className="max-w-2xl mx-auto">
+        <div className={`mx-auto transition-all duration-300 max-w-4xl`}>
           {activeTab === "file" ? (
-            <div className="space-y-6">
+            <div className="space-y-8">
               <FileZone />
 
               {/* Features */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <FeatureCard
                   icon={
                     <svg
-                      className="w-6 h-6"
+                      className="w-5 h-5"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -130,13 +129,13 @@ export default function Home() {
                       />
                     </svg>
                   }
-                  title="No Storage"
-                  description="Files are processed in memory, never stored"
+                  title="Private"
+                  description="Files processed in memory only"
                 />
                 <FeatureCard
                   icon={
                     <svg
-                      className="w-6 h-6"
+                      className="w-5 h-5"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -150,7 +149,7 @@ export default function Home() {
                     </svg>
                   }
                   title="Instant"
-                  description="See your wind visualization in seconds"
+                  description="Visualize wind data in seconds"
                 />
               </div>
             </div>
@@ -158,11 +157,20 @@ export default function Home() {
             <SaildocsBuilder />
           )}
         </div>
+      </main>
 
-        <footer className="text-center mt-16 text-slate-500 text-sm">
-          <p>Free & open source. No signup required.</p>
-        </footer>
-      </div>
+      <footer className="relative text-center py-8 text-slate-500 text-sm space-y-3">
+        <p>Free. No signup required. No data stored.</p>
+        <a
+          href="https://buymeacoffee.com/iliast"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 hover:text-amber-300 border border-amber-500/30 rounded-full transition-colors"
+        >
+          <span>☕</span>
+          <span>Buy me a coffee</span>
+        </a>
+      </footer>
     </div>
   );
 }
@@ -273,33 +281,33 @@ function FileZone() {
     [openFile]
   );
 
-  const handleClick = () => {
-    fileInputRef.current?.click();
-  };
-
   return (
-    <div
-      onClick={handleClick}
+    <label
+      htmlFor="grib-file-input"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       className={`
-        relative cursor-pointer rounded-2xl border-2 border-dashed p-12
-        transition-all duration-200 text-center
+        relative cursor-pointer rounded-2xl border-2 border-dashed py-14 px-8
+        transition-all duration-200 text-center block
+        focus-within:outline-none focus-within:ring-2 focus-within:ring-cyan-500 focus-within:ring-offset-2 focus-within:ring-offset-slate-900
         ${
           isDragging
-            ? "border-cyan-400 bg-cyan-500/10 scale-[1.02]"
-            : "border-slate-600 hover:border-slate-500 hover:bg-slate-800/50"
+            ? "border-cyan-400 bg-cyan-500/10 scale-[1.01]"
+            : "border-slate-600 hover:border-slate-500 hover:bg-slate-800/30"
         }
-        ${isParsing ? "pointer-events-none opacity-60" : ""}
+        ${isParsing ? "pointer-events-none opacity-60 cursor-not-allowed" : ""}
       `}
     >
       <input
+        id="grib-file-input"
         ref={fileInputRef}
         type="file"
         accept=".grb,.grb2,.grib,.grib2"
         onChange={handleFileSelect}
-        className="hidden"
+        className="sr-only"
+        disabled={isParsing}
+        aria-describedby="file-upload-description"
       />
 
       {isParsing ? (
@@ -331,18 +339,22 @@ function FileZone() {
               ? "Drop your GRIB file here"
               : "Drag & drop a GRIB file"}
           </p>
-          <p className="text-sm text-slate-500">
+          <p id="file-upload-description" className="text-sm text-slate-500">
             or click to browse • .grb, .grb2, .grib, .grib2 • Max 50MB
           </p>
         </>
       )}
 
       {error && (
-        <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+        <div
+          className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg"
+          role="alert"
+          aria-live="polite"
+        >
           <p className="text-red-400 text-sm">{error}</p>
         </div>
       )}
-    </div>
+    </label>
   );
 }
 
@@ -356,12 +368,14 @@ function FeatureCard({
   description: string;
 }) {
   return (
-    <div className="bg-slate-800/30 border border-slate-700/50 rounded-xl p-4">
-      <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-slate-700/50 text-cyan-400 mb-3">
+    <div className="flex items-start gap-3 bg-slate-800/20 border border-slate-700/30 rounded-lg p-3">
+      <div className="shrink-0 flex items-center justify-center w-9 h-9 rounded-lg bg-slate-700/40 text-cyan-400/80">
         {icon}
       </div>
-      <h3 className="text-sm font-semibold mb-1">{title}</h3>
-      <p className="text-slate-400 text-xs">{description}</p>
+      <div className="min-w-0">
+        <h3 className="text-sm font-medium text-slate-300">{title}</h3>
+        <p className="text-slate-500 text-xs leading-snug">{description}</p>
+      </div>
     </div>
   );
 }
