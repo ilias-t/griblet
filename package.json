@@ -4,7 +4,7 @@
   "scripts": {
     "build": "bun --bun react-router build",
     "dev": "bun --bun react-router dev",
-    "start": "bun --conditions=production --bun react-router-serve ./build/server/index.js",
+    "start": "bun --bun react-router-serve ./build/server/index.js",
     "typecheck": "bun --bun react-router typegen && tsc"
   },
   "dependencies": {
