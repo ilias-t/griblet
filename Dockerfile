@@ -11,6 +11,8 @@ RUN NODE_ENV=production bun run build
 # Production image
 FROM oven/bun:1-debian
 
+ENV NODE_ENV=production
+
 # Install eccodes (ECMWF's GRIB library)
 RUN apt-get update && apt-get install -y \
     libeccodes-tools \
