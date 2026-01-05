@@ -186,7 +186,8 @@ async function extractMessageData(
   gribPath: string,
   messageNumber: number,
   nx: number,
-  ny: number
+  ny: number,
+  _flipVertical: boolean = false
 ): Promise<number[]> {
   // grib_get_data outputs: lat lon value
   const proc = Bun.spawn(
@@ -358,11 +359,24 @@ async function parseTimeStep(
 
   const dx = uMessage.iDirectionIncrement;
   const dy = uMessage.jDirectionIncrement;
+  const scansSouthToNorth = lat1 < lat2;
 
   // Extract data
   const [uData, vData] = await Promise.all([
-    extractMessageData(gribPath, uMessage.messageNumber, nx, ny),
-    extractMessageData(gribPath, vMessage.messageNumber, nx, ny),
+    extractMessageData(
+      gribPath,
+      uMessage.messageNumber,
+      nx,
+      ny,
+      scansSouthToNorth
+    ),
+    extractMessageData(
+      gribPath,
+      vMessage.messageNumber,
+      nx,
+      ny,
+      scansSouthToNorth
+    ),
   ]);
 
   const forecastHour = uMessage.stepRange;
