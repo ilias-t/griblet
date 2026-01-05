@@ -67,10 +67,15 @@ export interface MultiTimeVelocityData {
   refTime: string;
 }
 
+// Cached result for eccodes availability check
+let eccodesAvailable: boolean | null = null;
+
 /**
- * Check if eccodes is installed
+ * Check if eccodes is installed (cached after first check)
  */
 export async function checkEccodes(): Promise<boolean> {
+  if (eccodesAvailable !== null) return eccodesAvailable;
+
   try {
     const proc = Bun.spawn(["grib_ls", "-V"], {
       stdout: "pipe",
@@ -78,10 +83,11 @@ export async function checkEccodes(): Promise<boolean> {
     });
     await proc.exited;
     // grib_ls -V exits with 0 and prints version info
-    return true;
+    eccodesAvailable = true;
   } catch {
-    return false;
+    eccodesAvailable = false;
   }
+  return eccodesAvailable;
 }
 
 // Alias for backward compatibility
@@ -206,10 +212,12 @@ async function extractMessageData(
     throw new Error(`grib_get_data failed: ${stderr}`);
   }
 
+  // Use Float32Array for better memory efficiency
+  const grid = new Float32Array(nx * ny);
+
   const lines = output.trim().split("\n");
 
-  // Parse the data points
-  const points: { lat: number; lon: number; value: number }[] = [];
+  // First pass: find bounds
   let minLat = Infinity,
     maxLat = -Infinity;
   let minLon = Infinity,
@@ -217,7 +225,32 @@ async function extractMessageData(
 
   for (const line of lines) {
     const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("Latitude")) continue; // Skip header
+    if (!trimmed || trimmed.startsWith("Latitude")) continue;
+
+    const parts = trimmed.split(/\s+/);
+    if (parts.length < 3) continue;
+
+    const lat = parseFloat(parts[0]);
+    let lon = parseFloat(parts[1]);
+
+    if (isNaN(lat) || isNaN(lon)) continue;
+
+    // Convert longitude from 0-360 to -180/180
+    if (lon > 180) lon -= 360;
+
+    minLat = Math.min(minLat, lat);
+    maxLat = Math.max(maxLat, lat);
+    minLon = Math.min(minLon, lon);
+    maxLon = Math.max(maxLon, lon);
+  }
+
+  const dLat = ny > 1 ? (maxLat - minLat) / (ny - 1) : 1;
+  const dLon = nx > 1 ? (maxLon - minLon) / (nx - 1) : 1;
+
+  // Second pass: populate grid directly
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("Latitude")) continue;
 
     const parts = trimmed.split(/\s+/);
     if (parts.length < 3) continue;
@@ -229,34 +262,16 @@ async function extractMessageData(
     if (isNaN(lat) || isNaN(lon) || isNaN(value)) continue;
 
     // Convert longitude from 0-360 to -180/180
-    if (lon > 180) lon = lon - 360;
+    if (lon > 180) lon -= 360;
 
-    minLat = Math.min(minLat, lat);
-    maxLat = Math.max(maxLat, lat);
-    minLon = Math.min(minLon, lon);
-    maxLon = Math.max(maxLon, lon);
-
-    points.push({ lat, lon, value });
-  }
-
-  // Create grid (leaflet-velocity expects north to south, west to east)
-  const grid: number[][] = [];
-  for (let j = 0; j < ny; j++) {
-    grid[j] = new Array(nx).fill(0);
-  }
-
-  const dLat = ny > 1 ? (maxLat - minLat) / (ny - 1) : 1;
-  const dLon = nx > 1 ? (maxLon - minLon) / (nx - 1) : 1;
-
-  for (const { lat, lon, value } of points) {
     const i = Math.round((lon - minLon) / dLon);
     const j = Math.round((maxLat - lat) / dLat); // Flip so north is first
     if (i >= 0 && i < nx && j >= 0 && j < ny) {
-      grid[j][i] = value;
+      grid[j * nx + i] = value;
     }
   }
 
-  return grid.flat();
+  return Array.from(grid);
 }
 
 /**
@@ -543,14 +558,28 @@ export async function parseGribToVelocityJson(
   return multiTime.timeSteps[0].data;
 }
 
+// Concurrency limiting for parsing operations
+let activeParses = 0;
+const MAX_CONCURRENT_PARSES = 2;
+
 /**
  * Parse a GRIB file from a buffer (in-memory processing)
  * Writes to a temp file, parses with eccodes, then deletes the temp file.
+ * Includes concurrency limiting to prevent OOM from burst uploads.
  */
 export async function parseGribBuffer(
   buffer: ArrayBuffer,
   filename: string
 ): Promise<MultiTimeVelocityData> {
+  // Check concurrency limit
+  if (activeParses >= MAX_CONCURRENT_PARSES) {
+    throw new Error(
+      "Server busy processing other files. Please try again in a moment."
+    );
+  }
+
+  activeParses++;
+
   // Create temp directory if needed
   const tempDir = join(tmpdir(), "marine-grib-viewer");
   await mkdir(tempDir, { recursive: true });
@@ -567,6 +596,7 @@ export async function parseGribBuffer(
 
     return result;
   } finally {
+    activeParses--;
     // Always clean up temp file
     try {
       await unlink(tempPath);
