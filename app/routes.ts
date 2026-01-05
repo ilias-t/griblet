@@ -4,4 +4,5 @@ export default [
   index("routes/home.tsx"),
   route("viewer", "routes/viewer.tsx"),
   route("api/parse", "routes/api.parse.tsx"),
+  route("*", "routes/404.tsx"),
 ] satisfies RouteConfig;

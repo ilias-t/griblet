@@ -32,4 +32,4 @@ RUN mkdir -p /app/data/gribs
 # Expose port
 EXPOSE 3000
 
-CMD ["bun", "--conditions=production", "--bun", "react-router-serve", "./build/server/index.js"]
+CMD ["bun", "run", "start"]
