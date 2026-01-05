@@ -1,12 +1,13 @@
 # Install dependencies and build
 FROM oven/bun:1-debian AS build-env
+ENV NODE_ENV=production
 
 WORKDIR /app
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
 
 COPY . .
-RUN NODE_ENV=production bun run build
+RUN bun run build
 
 # Production image
 FROM oven/bun:1-debian
