@@ -2,7 +2,7 @@
 
 Free online GRIB file viewer for marine weather data. Visualize wind forecasts instantly in your browser.
 
-**Live:** [griblet.fly.dev](https://griblet.fly.dev)
+**Live:** [griblet.app](https://griblet.app/)
 
 ## Features
 
